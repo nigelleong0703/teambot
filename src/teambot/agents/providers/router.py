@@ -96,11 +96,18 @@ class ProviderManager:
                     if on_token is not None:
                         on_token(token)
 
-                response = client.invoke(
-                    system_prompt=system_prompt,
-                    payload=payload,
-                    on_token=_forward_token if on_token or self._event_listener else None,
-                )
+                try:
+                    response = client.invoke(
+                        system_prompt=system_prompt,
+                        payload=payload,
+                        on_token=_forward_token if on_token or self._event_listener else None,
+                    )
+                except TypeError:
+                    # Backward compatibility for custom clients without on_token support.
+                    response = client.invoke(
+                        system_prompt=system_prompt,
+                        payload=payload,
+                    )
                 parsed = extract_json_object(response.text)
                 elapsed_ms = int((time.perf_counter() - started_at) * 1000)
                 self._emit(
