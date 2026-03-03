@@ -8,9 +8,7 @@ from ..agent_core.contracts import ModelRoleInvoker
 from ..models import AgentState
 from ..adapters.providers import (
     ROLE_AGENT,
-    ROLE_ROUTER,
     ProviderInvocationError,
-    ProviderManager,
     build_default_provider_manager,
 )
 from .skills.registry import SkillManifest
@@ -68,7 +66,7 @@ class RulePlanner:
 
 
 class ReasoningModelPlanner:
-    """Planner backed by provider manager role bindings."""
+    """Single-model planner backed by the agent_model role."""
 
     def __init__(
         self,
@@ -101,66 +99,10 @@ class ReasoningModelPlanner:
             for skill in available_skills
         ]
 
-        if self.provider_manager.has_role(ROLE_ROUTER):
-            routed = self._try_router(
-                state=state,
-                allowed_skills=skill_names,
-                skill_specs=skill_specs,
-            )
-            if routed is not None:
-                return routed
-
         return self._plan_with_agent(
             state=state,
             allowed_skills=skill_names,
             skill_specs=skill_specs,
-        )
-
-    def _try_router(
-        self,
-        *,
-        state: AgentState,
-        allowed_skills: set[str],
-        skill_specs: list[dict[str, str]],
-    ) -> PlanResult | None:
-        system_prompt = (
-            "You are a low-cost router model. Return JSON only.\n"
-            "Schema: {\n"
-            '  "use_agent_model": boolean,\n'
-            '  "selected_skill": string,\n'
-            '  "note": string\n'
-            "}\n"
-            "Rules:\n"
-            "- If task is ambiguous or requires deeper reasoning, set use_agent_model=true.\n"
-            "- If use_agent_model=false, selected_skill must be in available_skills.\n"
-        )
-        payload = {
-            "event_type": state.get("event_type"),
-            "user_text": state.get("user_text"),
-            "reaction": state.get("reaction"),
-            "available_skills": skill_specs,
-        }
-        try:
-            result = self.provider_manager.invoke_role_json(
-                role=ROLE_ROUTER,
-                system_prompt=system_prompt,
-                payload=payload,
-            )
-            raw = result.data
-        except ProviderInvocationError:
-            return None
-
-        use_agent_model = bool(raw.get("use_agent_model", True))
-        selected_skill = str(raw.get("selected_skill", "")).strip()
-        note = str(raw.get("note", "")).strip() or "router"
-
-        if use_agent_model:
-            return None
-        if not selected_skill or selected_skill not in allowed_skills:
-            return None
-        return PlanResult(
-            selected_skill=selected_skill,
-            note=f"Router model: {note}",
         )
 
     def _plan_with_agent(

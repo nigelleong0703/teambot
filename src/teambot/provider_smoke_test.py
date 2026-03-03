@@ -15,12 +15,12 @@ from .adapters.providers import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Smoke test router_model and agent_model provider calls."
+        description="Smoke test model role provider calls (default: agent_model)."
     )
     parser.add_argument(
         "--roles",
-        default="router,agent",
-        help="Comma-separated roles to test: router,agent",
+        default="agent",
+        help="Comma-separated roles to test: agent,router",
     )
     parser.add_argument(
         "--pretty",
@@ -185,7 +185,7 @@ def main() -> None:
             roles.append(role)
 
     if not roles:
-        print("No valid roles requested. Use --roles router,agent", file=sys.stderr)
+        print("No valid roles requested. Use --roles agent[,router]", file=sys.stderr)
         sys.exit(2)
 
     results = [_test_role(role) for role in roles]

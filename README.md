@@ -27,7 +27,7 @@ Router/Planner/Agent Core focused diagrams:
 - `src/teambot/agents/core/router.py`: reason node + route guards
 - `src/teambot/agents/core/executor.py`: act/observe/compose nodes
 - `src/teambot/agents/core/state.py`: initial `AgentState` builder
-- `src/teambot/agents/planner.py`: planner abstraction (`RulePlanner` + optional dual-model `ReasoningModelPlanner`)
+- `src/teambot/agents/planner.py`: planner abstraction (`RulePlanner` + single-model `ReasoningModelPlanner`)
 - `src/teambot/agents/providers/`: provider manager (`config/registry/router/normalize`)
 - `src/teambot/agents/model_adapter.py`: compatibility shim around provider manager clients
 - `src/teambot/agents/skills/`: skill registry + builtin skills
@@ -69,9 +69,7 @@ curl -X POST http://127.0.0.1:8000/events/slack \
 ## Enable model planner (optional)
 
 By default, TeamBot uses local `RulePlanner`.
-If you set `AGENT_MODEL`, runtime planning uses the provider manager.
-If you also set `ROUTER_MODEL`, the system uses dual-model routing:
-router model for low-cost dispatch, agent model for deeper planning.
+If you set `AGENT_MODEL`, runtime planning uses the provider manager (`agent_model` only).
 
 ```bash
 export AGENT_PROVIDER="openai-compatible"
@@ -82,16 +80,6 @@ export AGENT_TIMEOUT_SECONDS="20"
 export AGENT_MAX_ATTEMPTS="2"
 export AGENT_FALLBACKS_JSON='[
   {"provider":"anthropic","model":"claude-3-5-sonnet-latest","api_key":"your_api_key"}
-]'
-
-export ROUTER_PROVIDER="openai-compatible"
-export ROUTER_MODEL="gpt-5-nano"
-export ROUTER_API_KEY="your_api_key"
-export ROUTER_BASE_URL="https://api.openai.com/v1"
-export ROUTER_TIMEOUT_SECONDS="10"
-export ROUTER_MAX_ATTEMPTS="2"
-export ROUTER_FALLBACKS_JSON='[
-  {"provider":"openai-compatible","model":"gpt-5-mini"}
 ]'
 ```
 
@@ -175,18 +163,18 @@ To keep output short in one-shot mode:
 PYTHONPATH=src python -m teambot.react_loop_demo --text "hello" --view summary
 ```
 
-## Provider smoke test (router + agent)
+## Provider smoke test (agent default)
 
-Quickly test whether both model roles can be invoked with current env:
-
-```bash
-PYTHONPATH=src python -m teambot.provider_smoke_test --roles router,agent --pretty
-```
-
-You can test a single role:
+Quickly test whether `agent_model` can be invoked with current env:
 
 ```bash
 PYTHONPATH=src python -m teambot.provider_smoke_test --roles agent --pretty
+```
+
+If you still want router-role probing for experiments:
+
+```bash
+PYTHONPATH=src python -m teambot.provider_smoke_test --roles router --pretty
 ```
 
 ## Enable dynamic skills (optional)

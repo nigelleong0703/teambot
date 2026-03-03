@@ -3,10 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from teambot.agents.planner import ReasoningModelPlanner
-from teambot.agents.providers.base import NormalizedResponse, ProviderEndpoint, ProviderRoleBinding, ProviderSettings
+import pytest
+
+from teambot.agents.planner import PlannerError, ReasoningModelPlanner
+from teambot.agents.providers.base import (
+    NormalizedResponse,
+    ProviderEndpoint,
+    ProviderRoleBinding,
+    ProviderSettings,
+)
 from teambot.agents.providers.registry import ProviderClientRegistry
-from teambot.agents.providers.router import ROLE_AGENT, ROLE_ROUTER, ProviderManager
+from teambot.agents.providers.router import ROLE_AGENT, ProviderManager
 from teambot.agents.skills.registry import SkillManifest
 from teambot.models import AgentState
 
@@ -60,21 +67,19 @@ def _skills() -> list[SkillManifest]:
     ]
 
 
-def test_planner_uses_router_role_when_router_can_decide() -> None:
-    router_endpoint = ProviderEndpoint(provider="openai-compatible", model="router")
+def test_planner_uses_agent_role_only() -> None:
+    agent_endpoint = ProviderEndpoint(provider="openai-compatible", model="agent")
     settings = ProviderSettings(
         role_bindings={
-            ROLE_AGENT: ProviderRoleBinding(role=ROLE_AGENT, endpoints=[ProviderEndpoint(provider="openai-compatible", model="agent")]),
-            ROLE_ROUTER: ProviderRoleBinding(role=ROLE_ROUTER, endpoints=[router_endpoint]),
+            ROLE_AGENT: ProviderRoleBinding(role=ROLE_AGENT, endpoints=[agent_endpoint]),
         }
     )
-
     manager = ProviderManager(
         settings=settings,
         client_registry=ProviderClientRegistry(
             client_factory=lambda endpoint: _PlannerClient(
                 endpoint=endpoint,
-                response_text='{"use_agent_model": false, "selected_skill": "create_task", "note": "cheap route"}',
+                response_text='{"done": false, "selected_skill": "create_task", "skill_input": {}, "final_message": "", "note": "agent decision"}',
             )
         ),
     )
@@ -82,36 +87,28 @@ def test_planner_uses_router_role_when_router_can_decide() -> None:
     result = planner.plan(_state("/todo x"), _skills())
 
     assert result.selected_skill == "create_task"
-    assert "Router model" in result.note
+    assert result.note == "agent decision"
 
 
-def test_planner_falls_through_to_agent_role_when_router_escalates() -> None:
-    router_endpoint = ProviderEndpoint(provider="openai-compatible", model="router")
-    agent_endpoint = ProviderEndpoint(provider="openai-compatible", model="agent")
+def test_planner_rejects_unknown_skill_from_agent() -> None:
     settings = ProviderSettings(
         role_bindings={
-            ROLE_AGENT: ProviderRoleBinding(role=ROLE_AGENT, endpoints=[agent_endpoint]),
-            ROLE_ROUTER: ProviderRoleBinding(role=ROLE_ROUTER, endpoints=[router_endpoint]),
+            ROLE_AGENT: ProviderRoleBinding(
+                role=ROLE_AGENT,
+                endpoints=[ProviderEndpoint(provider="openai-compatible", model="agent")],
+            ),
         }
     )
-
-    def _factory(endpoint: ProviderEndpoint):
-        if endpoint.model == "router":
-            return _PlannerClient(
-                endpoint=endpoint,
-                response_text='{"use_agent_model": true, "selected_skill": "", "note": "escalate"}',
-            )
-        return _PlannerClient(
-            endpoint=endpoint,
-            response_text='{"done": false, "selected_skill": "create_task", "skill_input": {}, "final_message": "", "note": "agent decision"}',
-        )
-
     manager = ProviderManager(
         settings=settings,
-        client_registry=ProviderClientRegistry(client_factory=_factory),
+        client_registry=ProviderClientRegistry(
+            client_factory=lambda endpoint: _PlannerClient(
+                endpoint=endpoint,
+                response_text='{"done": false, "selected_skill": "unknown_skill", "skill_input": {}, "final_message": "", "note": ""}',
+            )
+        ),
     )
     planner = ReasoningModelPlanner(provider_manager=manager)
-    result = planner.plan(_state("/todo x"), _skills())
 
-    assert result.selected_skill == "create_task"
-    assert result.note == "agent decision"
+    with pytest.raises(PlannerError):
+        planner.plan(_state("hello"), _skills())

@@ -4,9 +4,9 @@
 
 ```mermaid
 flowchart LR
-  U["User Input"] --> R["Router (rule or router_model)"]
+  U["User Input"] --> R["Rule Routing (non-model)"]
   R -->|"direct action"| X["Executor (skill/tool)"]
-  R -->|"escalate"| P["Reasoning Planner (agent_model)"]
+  R -->|"needs reasoning"| P["Reasoning Planner (agent_model)"]
   P --> X
   X --> O["Observe"]
   O --> C["Compose Reply"]
