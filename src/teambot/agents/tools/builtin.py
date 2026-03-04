@@ -10,7 +10,7 @@ from ..prompts import build_system_prompt_from_working_dir
 from .registry import ToolManifest, ToolRegistry
 
 
-def _deterministic_general_reply(state: AgentState) -> dict[str, str]:
+def _deterministic_message_reply(state: AgentState) -> dict[str, str]:
     text = state.get("user_text", "").strip()
     return {
         "message": (
@@ -20,14 +20,14 @@ def _deterministic_general_reply(state: AgentState) -> dict[str, str]:
     }
 
 
-class _GeneralReplyTool:
+class _MessageReplyTool:
     def __init__(self, provider_manager: ModelRoleInvoker | None) -> None:
         self._provider_manager = provider_manager
 
     def __call__(self, state: AgentState) -> dict[str, str]:
         manager = self._provider_manager
         if manager is None or not manager.has_role(ROLE_AGENT):
-            return _deterministic_general_reply(state)
+            return _deterministic_message_reply(state)
 
         try:
             result = manager.invoke_role_text(
@@ -36,12 +36,12 @@ class _GeneralReplyTool:
                 user_message=str(state.get("user_text", "")).strip(),
             )
         except Exception:
-            return _deterministic_general_reply(state)
+            return _deterministic_message_reply(state)
 
         message = _extract_message_text(result.text)
         if message:
             return {"message": message}
-        return _deterministic_general_reply(state)
+        return _deterministic_message_reply(state)
 
 
 def _extract_message_text(raw_text: str) -> str:
@@ -78,11 +78,11 @@ def build_tool_registry(
     registry = ToolRegistry()
     registry.register(
         ToolManifest(
-            name="general_reply",
+            name="message_reply",
             description="Default conversational message tool.",
             risk_level="low",
         ),
-        _GeneralReplyTool(provider_manager),
+        _MessageReplyTool(provider_manager),
     )
 
     if os.getenv("ENABLE_ECHO_TOOL", "").strip().lower() in {"1", "true", "yes"}:

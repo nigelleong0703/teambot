@@ -19,7 +19,7 @@ async def test_todo_message_uses_default_message_action() -> None:
 
     reply = await service.process_event(event)
 
-    assert reply.skill_name == "general_reply"
+    assert reply.skill_name == "message_reply"
     assert reply.text
 
 
@@ -38,5 +38,5 @@ async def test_reaction_event_uses_default_message_action() -> None:
 
     reply = await service.process_event(event)
 
-    assert reply.skill_name == "general_reply"
+    assert reply.skill_name == "message_reply"
     assert reply.text

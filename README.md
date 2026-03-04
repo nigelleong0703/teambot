@@ -29,7 +29,7 @@ Runtime/Agent Core focused diagrams:
 - `src/teambot/agents/core/state.py`: initial `AgentState` builder
 - `src/teambot/agents/providers/`: provider manager (`config/registry/failover/normalize`, single `agent_model` role)
 - `src/teambot/agents/skills/`: skill registry + builtin skills
-- `src/teambot/agents/tools/`: tool registry + builtin tools (default `general_reply` message tool)
+- `src/teambot/agents/tools/`: tool registry + builtin tools (default `message_reply` message tool)
 - `src/teambot/store.py`: in-memory conversation + idempotency store
 
 ## Run
@@ -67,7 +67,7 @@ curl -X POST http://127.0.0.1:8000/events/slack \
 ## Enable model-backed general reply (optional)
 
 By default, TeamBot can run deterministically without model calls.
-If `agent_model` role is configured, the `general_reply` tool invokes the provider manager to generate `{\"message\": ...}` JSON.
+If `agent_model` role is configured, the `message_reply` tool invokes the provider manager to generate `{\"message\": ...}` JSON.
 
 ```bash
 export AGENT_PROVIDER="openai-compatible"
@@ -82,7 +82,7 @@ export AGENT_FALLBACKS_JSON='[
 ```
 
 Safety behavior:
-- model call failure in `general_reply` -> deterministic fallback reply
+- model call failure in `message_reply` -> deterministic fallback reply
 - max ReAct steps -> forced finish
 - high-risk actions -> policy gate block by default
 

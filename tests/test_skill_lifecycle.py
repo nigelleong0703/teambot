@@ -8,7 +8,8 @@ from teambot.agents.skills.manager import (
 def test_builtin_skills_are_synced_to_active_on_init() -> None:
     ensure_skills_initialized()
     names = set(list_available_skills())
-    assert {"general_reply", "create_task", "handle_reaction"} <= names
+    assert {"create_task", "handle_reaction"} <= names
+    assert "message_reply" not in names
 
 
 def test_enable_disable_skill_works_on_active_set() -> None:

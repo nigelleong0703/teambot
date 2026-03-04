@@ -40,7 +40,8 @@ class AgentService:
 
     def _build_runtime_components(self) -> tuple[SkillRegistry, ToolRegistry, PluginHost]:
         ensure_skills_initialized()
-        active_names = set(list_available_skills())
+        # Ignore legacy reply-action names persisted in old active_skills directories.
+        active_names = set(list_available_skills()) - {"general_reply", "message_reply"}
         enabled_names = active_names if active_names else None
         skill_registry = build_registry(
             dynamic_skills_dir=self.dynamic_skills_dir,

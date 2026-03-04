@@ -10,7 +10,7 @@ Any change to routing, loop termination, tool execution, model prompt contract, 
 - Runtime loop: `reason -> act -> observe -> (loop | compose_reply)`
 - Deterministic reason-stage routing rules
 - Tool execution and policy gate behavior
-- Model prompt contract used by `general_reply` tool (working-dir system prompt)
+- Model prompt contract used by `message_reply` tool (working-dir system prompt)
 - Streaming behavior in provider client
 - Known design problems
 
@@ -94,7 +94,7 @@ flowchart TD
   - If denied (`high` risk not allowed), returns blocked result.
   - If allowed, invokes selected action through unified action registry.
 
-#### 3.1 `general_reply` model prompt source
+#### 3.1 `message_reply` model prompt source
 
 Used only when provider manager exists and has `agent_model` role binding.
 System prompt is composed from working-directory markdown files in this order:
@@ -103,11 +103,11 @@ System prompt is composed from working-directory markdown files in this order:
 2. `SOUL.md` (optional)
 3. `PROFILE.md` (optional)
 
-#### 3.2 `general_reply` user message input
+#### 3.2 `message_reply` user message input
 
-`general_reply` sends the latest user message text directly (`state.user_text`).
+`message_reply` sends the latest user message text directly (`state.user_text`).
 
-#### 3.3 `general_reply` output handling
+#### 3.3 `message_reply` output handling
 
 - Model output is consumed as plain text (no JSON required).
 - If provider invocation fails or output is empty, tool falls back to deterministic local message.
@@ -152,7 +152,7 @@ LangChain is used in provider client adapters, not in runtime control-flow files
 
 Runtime call chain for model reply generation:
 
-- `general_reply tool` -> `ProviderManager.invoke_role_text(...)` -> `LangChainProviderClient`
+- `message_reply tool` -> `ProviderManager.invoke_role_text(...)` -> `LangChainProviderClient`
 
 ## Streaming Behavior
 
@@ -166,7 +166,7 @@ Runtime call chain for model reply generation:
 ## Known Design Problems (Current)
 
 1. Reason routing is deterministic and rule-based; complex intent selection is limited.
-2. Conversation history is stored but not injected into `general_reply` model payload.
+2. Conversation history is stored but not injected into `message_reply` model payload.
 3. `observe` marks done when `next_skill` is absent, which biases toward single-step completion.
 4. Streaming smoothness still depends on provider chunk granularity.
 

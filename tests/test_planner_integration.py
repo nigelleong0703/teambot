@@ -27,7 +27,7 @@ def test_max_step_guard_short_circuits_act_execution() -> None:
     def should_not_run(_state: AgentState) -> dict[str, str]:
         raise AssertionError("act should be skipped when step guard is reached")
 
-    registry.register(SkillManifest(name="general_reply", description=""), should_not_run)
+    registry.register(SkillManifest(name="message_reply", description=""), should_not_run)
     registry.register(SkillManifest(name="create_task", description=""), should_not_run)
     registry.register(SkillManifest(name="handle_reaction", description=""), should_not_run)
 
@@ -45,21 +45,21 @@ def test_max_step_guard_short_circuits_act_execution() -> None:
 def test_unknown_follow_up_falls_back_to_default_action() -> None:
     registry = SkillRegistry()
 
-    def general_reply(_state: AgentState) -> dict[str, str]:
-        return {"message": "fallback:general_reply"}
+    def message_reply(_state: AgentState) -> dict[str, str]:
+        return {"message": "fallback:message_reply"}
 
     def create_task(_state: AgentState) -> dict[str, str]:
         return {"message": "task"}
 
-    registry.register(SkillManifest(name="general_reply", description=""), general_reply)
+    registry.register(SkillManifest(name="message_reply", description=""), message_reply)
     registry.register(SkillManifest(name="create_task", description=""), create_task)
-    registry.register(SkillManifest(name="handle_reaction", description=""), general_reply)
+    registry.register(SkillManifest(name="handle_reaction", description=""), message_reply)
 
     graph = build_graph(registry)
     state = _state("hello")
     state["skill_output"] = {"next_skill": "missing_action"}
     result = graph.invoke(state)
 
-    assert result["selected_skill"] == "general_reply"
-    assert result["reply_text"] == "fallback:general_reply"
-    assert "fallback to general_reply" in result["reasoning_note"]
+    assert result["selected_skill"] == "message_reply"
+    assert result["reply_text"] == "fallback:message_reply"
+    assert "fallback to message_reply" in result["reasoning_note"]
