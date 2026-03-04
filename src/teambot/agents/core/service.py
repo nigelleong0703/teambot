@@ -22,6 +22,8 @@ class AgentService:
     def __init__(self) -> None:
         self.store = MemoryStore()
         self.dynamic_skills_dir = os.getenv("SKILLS_DIR", "").strip() or None
+        # Backward compatibility for integrations still reading service.planner.
+        self.planner = None
         self.provider_manager: ProviderManager | None = build_default_provider_manager()
         self.registry: SkillRegistry
         self.tool_registry: ToolRegistry

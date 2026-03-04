@@ -73,7 +73,6 @@ def _exec_tool_placeholder(_state: AgentState) -> dict[str, str]:
 
 
 def build_tool_registry(
-    *,
     provider_manager: ModelRoleInvoker | None = None,
 ) -> ToolRegistry:
     registry = ToolRegistry()

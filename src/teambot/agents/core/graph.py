@@ -53,11 +53,14 @@ class AgentCoreRuntime:
 
 def build_graph(
     registry: SkillRegistry,
+    planner=None,
     *,
     tool_registry: ToolRegistry | None = None,
     plugin_registry: ActionPluginRegistry | None = None,
     policy_gate: ExecutionPolicyGate | None = None,
 ):
+    # Backward compatibility: keep accepting planner argument from old callers.
+    _ = planner
     if policy_gate is None:
         policy_gate = ExecutionPolicyGate.from_env()
 

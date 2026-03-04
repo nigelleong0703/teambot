@@ -17,6 +17,11 @@ def parse_args() -> argparse.Namespace:
         description="Smoke test agent_model provider call."
     )
     parser.add_argument(
+        "--roles",
+        default="agent",
+        help="Deprecated. Kept for compatibility; only agent role is tested.",
+    )
+    parser.add_argument(
         "--pretty",
         action="store_true",
         help="Pretty-print output JSON.",
