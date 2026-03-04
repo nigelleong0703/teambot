@@ -1,10 +1,18 @@
 from __future__ import annotations
 
-from ...models import AgentState
+from dataclasses import dataclass
+from typing import Mapping
+
 from .system_prompt import build_system_prompt_from_working_dir
 
 
-def general_reply_system_prompt() -> str:
+@dataclass(frozen=True)
+class GeneralReplyPromptBundle:
+    system_prompt: str
+    user_message: str
+
+
+def _general_reply_system_prompt() -> str:
     base_prompt = build_system_prompt_from_working_dir()
     return (
         f"{base_prompt}\n\n"
@@ -16,7 +24,7 @@ def general_reply_system_prompt() -> str:
     )
 
 
-def build_general_reply_user_message(state: AgentState) -> str:
+def _general_reply_user_message(state: Mapping[str, object]) -> str:
     user_text = str(state.get("user_text", "")).strip()
     reaction = state.get("reaction")
     event_type = state.get("event_type")
@@ -27,4 +35,13 @@ def build_general_reply_user_message(state: AgentState) -> str:
         "\n"
         "Latest user message:\n"
         f"{user_text}"
+    )
+
+
+def build_general_reply_prompt_bundle(
+    state: Mapping[str, object],
+) -> GeneralReplyPromptBundle:
+    return GeneralReplyPromptBundle(
+        system_prompt=_general_reply_system_prompt(),
+        user_message=_general_reply_user_message(state),
     )

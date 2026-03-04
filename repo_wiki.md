@@ -69,8 +69,7 @@
 - `src/teambot/agents/prompts/system_prompt.py`
   - 从工作目录读取 `AGENTS.md`（required）+ `SOUL.md` + `PROFILE.md`
 - `src/teambot/agents/prompts/general_reply.py`
-  - `general_reply_system_prompt`
-  - `build_general_reply_user_message`
+  - `build_general_reply_prompt_bundle`（统一返回 `system_prompt + user_message`）
 - `src/teambot/agents/tools/builtin.py`
   - `_GeneralReplyTool.__call__` 里调用 provider manager text invocation
   - 返回自然语言文本（JSON 非必须）

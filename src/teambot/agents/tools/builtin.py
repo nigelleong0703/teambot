@@ -6,7 +6,7 @@ import json
 from ...adapters.providers import ROLE_AGENT
 from ...agent_core.contracts import ModelRoleInvoker
 from ...models import AgentState
-from ..prompts import build_general_reply_user_message, general_reply_system_prompt
+from ..prompts import build_general_reply_prompt_bundle
 from .registry import ToolManifest, ToolRegistry
 
 
@@ -29,11 +29,12 @@ class _GeneralReplyTool:
         if manager is None or not manager.has_role(ROLE_AGENT):
             return _deterministic_general_reply(state)
 
+        prompt_bundle = build_general_reply_prompt_bundle(state)
         try:
             result = manager.invoke_role_text(
                 role=ROLE_AGENT,
-                system_prompt=general_reply_system_prompt(),
-                user_message=build_general_reply_user_message(state),
+                system_prompt=prompt_bundle.system_prompt,
+                user_message=prompt_bundle.user_message,
             )
         except Exception:
             return _deterministic_general_reply(state)

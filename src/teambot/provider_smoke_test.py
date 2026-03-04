@@ -10,7 +10,7 @@ from .adapters.providers import (
     ProviderInvocationError,
     build_default_provider_manager,
 )
-from .agents.prompts import general_reply_system_prompt
+from .agents.prompts import build_general_reply_prompt_bundle
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,7 +31,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def _agent_prompt() -> str:
-    return general_reply_system_prompt()
+    prompt_bundle = build_general_reply_prompt_bundle(
+        {
+            "event_type": "message",
+            "user_text": "hello from provider smoke test",
+            "reaction": None,
+        }
+    )
+    return prompt_bundle.system_prompt
 
 
 def _agent_payload() -> dict[str, Any]:
