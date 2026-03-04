@@ -10,6 +10,7 @@ from .adapters.providers import (
     ProviderInvocationError,
     build_default_provider_manager,
 )
+from .agents.prompts import general_reply_system_prompt
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,25 +31,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def _agent_prompt() -> str:
-    return (
-        "You are TeamBot's message tool. Return a single JSON object only. No markdown.\n"
-        "Schema: {\n"
-        '  "message": string\n'
-        "}\n"
-        "Rules:\n"
-        "- Keep message concise and user-facing.\n"
-    )
+    return general_reply_system_prompt()
 
 
 def _agent_payload() -> dict[str, Any]:
-    return {
-        "event_type": "message",
-        "user_text": "hello from provider smoke test",
-        "reaction": None,
-        "react_step": 0,
-        "conversation_key": "smoke:T1:C1:1",
-        "last_observation": {},
-    }
+    return {"message": "hello from provider smoke test"}
 
 
 def _mask(value: str | None) -> str:
@@ -89,10 +76,10 @@ def _test_agent_role() -> dict[str, Any]:
     }
 
     try:
-        result = manager.invoke_role_json(
+        result = manager.invoke_role_text(
             role=ROLE_AGENT,
             system_prompt=_agent_prompt(),
-            payload=_agent_payload(),
+            user_message=_agent_payload()["message"],
         )
         summary.update(
             {
@@ -101,7 +88,7 @@ def _test_agent_role() -> dict[str, Any]:
                 "invoked_model": result.model,
                 "finish_reason": result.finish_reason,
                 "usage": result.usage,
-                "response": result.data,
+                "response_text": result.text,
             }
         )
         return summary

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
+import json
 
 from ...adapters.providers import ROLE_AGENT
 from ...agent_core.contracts import ModelRoleInvoker
 from ...models import AgentState
-from ..prompts import build_general_reply_payload, general_reply_system_prompt
+from ..prompts import build_general_reply_user_message, general_reply_system_prompt
 from .registry import ToolManifest, ToolRegistry
 
 
@@ -29,18 +30,35 @@ class _GeneralReplyTool:
             return _deterministic_general_reply(state)
 
         try:
-            result = manager.invoke_role_json(
+            result = manager.invoke_role_text(
                 role=ROLE_AGENT,
                 system_prompt=general_reply_system_prompt(),
-                payload=build_general_reply_payload(state),
+                user_message=build_general_reply_user_message(state),
             )
         except Exception:
             return _deterministic_general_reply(state)
 
-        message = result.data.get("message")
-        if isinstance(message, str) and message.strip():
-            return {"message": message.strip()}
+        message = _extract_message_text(result.text)
+        if message:
+            return {"message": message}
         return _deterministic_general_reply(state)
+
+
+def _extract_message_text(raw_text: str) -> str:
+    text = raw_text.strip()
+    if not text:
+        return ""
+    # Graceful compatibility: if model still returns JSON object, read message field.
+    if text.startswith("{") and text.endswith("}"):
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            return text
+        if isinstance(parsed, dict):
+            msg = parsed.get("message")
+            if isinstance(msg, str) and msg.strip():
+                return msg.strip()
+    return text
 
 
 def _echo_tool(state: AgentState) -> dict[str, str]:

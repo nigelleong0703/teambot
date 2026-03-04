@@ -27,7 +27,7 @@ class _PlannerClient:
         self,
         *,
         system_prompt: str,
-        payload: dict,
+        payload: dict | str,
         on_token: Callable[[str], None] | None = None,
     ) -> NormalizedResponse:
         if on_token is not None:

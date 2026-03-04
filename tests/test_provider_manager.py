@@ -27,7 +27,7 @@ class _FakeClient:
         self,
         *,
         system_prompt: str,
-        payload: dict,
+        payload: dict | str,
         on_token: Callable[[str], None] | None = None,
     ) -> NormalizedResponse:
         if self.fail:
@@ -45,13 +45,13 @@ class _FakeClient:
 
 def test_provider_manager_role_binding_and_failover() -> None:
     endpoints = [
-        ProviderEndpoint(provider="openai-compatible", model="router-primary"),
-        ProviderEndpoint(provider="openai-compatible", model="router-fallback"),
+        ProviderEndpoint(provider="openai-compatible", model="agent-primary"),
+        ProviderEndpoint(provider="openai-compatible", model="agent-fallback"),
     ]
     settings = ProviderSettings(
         role_bindings={
-            "router_model": ProviderRoleBinding(
-                role="router_model",
+            "agent_model": ProviderRoleBinding(
+                role="agent_model",
                 endpoints=endpoints,
                 max_attempts=2,
             )
@@ -59,11 +59,11 @@ def test_provider_manager_role_binding_and_failover() -> None:
     )
 
     def _factory(endpoint: ProviderEndpoint):
-        if endpoint.model == "router-primary":
+        if endpoint.model == "agent-primary":
             return _FakeClient(endpoint=endpoint, fail=True)
         return _FakeClient(
             endpoint=endpoint,
-            response_text='{"use_agent_model": false, "selected_skill": "general_reply"}',
+            response_text='{"selected_skill": "general_reply"}',
         )
 
     manager = ProviderManager(
@@ -71,13 +71,13 @@ def test_provider_manager_role_binding_and_failover() -> None:
         client_registry=ProviderClientRegistry(client_factory=_factory),
     )
     result = manager.invoke_role_json(
-        role="router_model",
+        role="agent_model",
         system_prompt="route",
         payload={"message": "hi"},
     )
 
     assert result.provider == "openai-compatible"
-    assert result.model == "router-fallback"
+    assert result.model == "agent-fallback"
     assert result.data["selected_skill"] == "general_reply"
 
 
@@ -166,3 +166,33 @@ def test_provider_manager_stream_callback_and_events() -> None:
     assert "model_start" in event_names
     assert "model_token" in event_names
     assert "model_end" in event_names
+
+
+def test_provider_manager_text_invocation() -> None:
+    endpoint = ProviderEndpoint(provider="openai-compatible", model="text-model")
+    settings = ProviderSettings(
+        role_bindings={
+            "agent_model": ProviderRoleBinding(
+                role="agent_model",
+                endpoints=[endpoint],
+                max_attempts=1,
+            )
+        }
+    )
+    manager = ProviderManager(
+        settings=settings,
+        client_registry=ProviderClientRegistry(
+            client_factory=lambda ep: _FakeClient(
+                endpoint=ep,
+                response_text="hello from text mode",
+            )
+        ),
+    )
+
+    result = manager.invoke_role_text(
+        role="agent_model",
+        system_prompt="sys",
+        user_message="hi",
+    )
+    assert result.text == "hello from text mode"
+    assert result.provider == "openai-compatible"

@@ -43,9 +43,10 @@ class ReactLoopDebugRunner:
     def _install_hooks(self) -> None:
         manager = self.service.provider_manager
         if manager is not None and manager.has_role(ROLE_AGENT):
-            original_invoke = manager.invoke_role_json
+            original_invoke_json = manager.invoke_role_json
+            original_invoke_text = manager.invoke_role_text
 
-            def traced_invoke(
+            def traced_invoke_json(
                 *,
                 role: str,
                 system_prompt: str,
@@ -92,7 +93,7 @@ class ReactLoopDebugRunner:
                     )
 
                 try:
-                    result = original_invoke(
+                    result = original_invoke_json(
                         role=role,
                         system_prompt=system_prompt,
                         payload=payload,
@@ -139,7 +140,102 @@ class ReactLoopDebugRunner:
                     )
                     raise
 
-            manager.invoke_role_json = traced_invoke  # type: ignore[method-assign]
+            def traced_invoke_text(
+                *,
+                role: str,
+                system_prompt: str,
+                user_message: str,
+            ):
+                call: dict[str, Any] = {
+                    "role": role,
+                    "system_prompt": system_prompt,
+                    "user_message": user_message,
+                }
+                provider_hint = ""
+                model_hint = ""
+                try:
+                    binding = manager.settings.get_role_binding(role)  # type: ignore[attr-defined]
+                    if binding.endpoints:
+                        provider_hint = binding.endpoints[0].provider
+                        model_hint = binding.endpoints[0].model
+                except Exception:
+                    pass
+
+                started = time.perf_counter()
+                self._emit(
+                    "model_start",
+                    {
+                        "role": role,
+                        "provider": provider_hint,
+                        "model": model_hint,
+                    },
+                )
+                streamed_tokens: list[str] = []
+
+                def on_token(token: str) -> None:
+                    if not token:
+                        return
+                    streamed_tokens.append(token)
+                    self._emit(
+                        "model_token",
+                        {
+                            "role": role,
+                            "provider": provider_hint,
+                            "model": model_hint,
+                            "token": token,
+                        },
+                    )
+
+                try:
+                    result = original_invoke_text(
+                        role=role,
+                        system_prompt=system_prompt,
+                        user_message=user_message,
+                        on_token=on_token,
+                    )
+                    duration_ms = int((time.perf_counter() - started) * 1000)
+                    call.update(
+                        {
+                            "response_text": result.text,
+                            "provider": result.provider,
+                            "model": result.model,
+                            "finish_reason": result.finish_reason,
+                            "usage": result.usage,
+                            "duration_ms": duration_ms,
+                            "streamed_text": "".join(streamed_tokens),
+                        }
+                    )
+                    self.trace.model_calls.append(call)
+                    self._emit(
+                        "model_end",
+                        {
+                            "role": role,
+                            "provider": result.provider,
+                            "model": result.model,
+                            "usage": result.usage,
+                            "duration_ms": duration_ms,
+                        },
+                    )
+                    return result
+                except Exception as exc:  # pragma: no cover
+                    duration_ms = int((time.perf_counter() - started) * 1000)
+                    call["error"] = str(exc)
+                    call["duration_ms"] = duration_ms
+                    self.trace.model_calls.append(call)
+                    self._emit(
+                        "model_error",
+                        {
+                            "role": role,
+                            "provider": provider_hint,
+                            "model": model_hint,
+                            "error": str(exc),
+                            "duration_ms": duration_ms,
+                        },
+                    )
+                    raise
+
+            manager.invoke_role_json = traced_invoke_json  # type: ignore[method-assign]
+            manager.invoke_role_text = traced_invoke_text  # type: ignore[method-assign]
 
         graph = self.service.graph
         original_reason = graph.reason_node

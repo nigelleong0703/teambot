@@ -11,7 +11,7 @@ from .base import (
     ProviderRoleBinding,
     ProviderSettings,
 )
-from .config import ROLE_AGENT, ROLE_ROUTER, load_provider_settings_from_env
+from .config import ROLE_AGENT, load_provider_settings_from_env
 from .normalize import extract_json_object
 from .registry import ProviderClientRegistry
 
@@ -19,6 +19,15 @@ from .registry import ProviderClientRegistry
 @dataclass(frozen=True)
 class ProviderInvocationResult:
     data: dict[str, Any]
+    provider: str
+    model: str
+    finish_reason: str = ""
+    usage: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ProviderTextResult:
+    text: str
     provider: str
     model: str
     finish_reason: str = ""
@@ -66,6 +75,51 @@ class ProviderManager:
         payload: dict[str, Any],
         on_token: Callable[[str], None] | None = None,
     ) -> ProviderInvocationResult:
+        raw = self._invoke_role_raw(
+            role=role,
+            system_prompt=system_prompt,
+            payload=payload,
+            on_token=on_token,
+        )
+        parsed = extract_json_object(raw["text"])
+        return ProviderInvocationResult(
+            data=parsed,
+            provider=raw["provider"],
+            model=raw["model"],
+            finish_reason=raw["finish_reason"],
+            usage=raw["usage"],
+        )
+
+    def invoke_role_text(
+        self,
+        *,
+        role: str,
+        system_prompt: str,
+        user_message: str,
+        on_token: Callable[[str], None] | None = None,
+    ) -> ProviderTextResult:
+        raw = self._invoke_role_raw(
+            role=role,
+            system_prompt=system_prompt,
+            payload=user_message,
+            on_token=on_token,
+        )
+        return ProviderTextResult(
+            text=raw["text"],
+            provider=raw["provider"],
+            model=raw["model"],
+            finish_reason=raw["finish_reason"],
+            usage=raw["usage"],
+        )
+
+    def _invoke_role_raw(
+        self,
+        *,
+        role: str,
+        system_prompt: str,
+        payload: dict[str, Any] | str,
+        on_token: Callable[[str], None] | None = None,
+    ) -> dict[str, Any]:
         binding = self.settings.get_role_binding(role)
         attempts: list[ProviderAttempt] = []
         candidate_endpoints = self._candidate_endpoints(binding)
@@ -108,7 +162,6 @@ class ProviderManager:
                         system_prompt=system_prompt,
                         payload=payload,
                     )
-                parsed = extract_json_object(response.text)
                 elapsed_ms = int((time.perf_counter() - started_at) * 1000)
                 self._emit(
                     "model_end",
@@ -121,13 +174,13 @@ class ProviderManager:
                         "finish_reason": response.finish_reason,
                     },
                 )
-                return ProviderInvocationResult(
-                    data=parsed,
-                    provider=endpoint.provider,
-                    model=endpoint.model,
-                    finish_reason=response.finish_reason,
-                    usage=response.usage,
-                )
+                return {
+                    "text": response.text,
+                    "provider": endpoint.provider,
+                    "model": endpoint.model,
+                    "finish_reason": response.finish_reason,
+                    "usage": response.usage,
+                }
             except Exception as exc:
                 elapsed_ms = int((time.perf_counter() - started_at) * 1000)
                 attempts.append(
@@ -170,8 +223,8 @@ def build_default_provider_manager() -> ProviderManager | None:
 
 __all__ = [
     "ROLE_AGENT",
-    "ROLE_ROUTER",
     "ProviderInvocationResult",
+    "ProviderTextResult",
     "ProviderManager",
     "build_default_provider_manager",
 ]

@@ -36,6 +36,15 @@ class ModelInvocationResult:
     usage: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class ModelTextInvocationResult:
+    text: str
+    provider: str
+    model: str
+    finish_reason: str = ""
+    usage: dict[str, Any] = field(default_factory=dict)
+
+
 class ModelRoleInvoker(Protocol):
     def has_role(self, role: str) -> bool:
         ...
@@ -47,4 +56,13 @@ class ModelRoleInvoker(Protocol):
         system_prompt: str,
         payload: dict[str, Any],
     ) -> ModelInvocationResult:
+        ...
+
+    def invoke_role_text(
+        self,
+        *,
+        role: str,
+        system_prompt: str,
+        user_message: str,
+    ) -> ModelTextInvocationResult:
         ...

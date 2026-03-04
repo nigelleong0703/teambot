@@ -16,7 +16,7 @@ class LangChainProviderClient:
         self,
         *,
         system_prompt: str,
-        payload: dict[str, Any],
+        payload: dict[str, Any] | str,
         on_token: Callable[[str], None] | None = None,
     ) -> NormalizedResponse:
         model = self._get_model()
@@ -27,7 +27,10 @@ class LangChainProviderClient:
                 "langchain_core is required for provider clients"
             ) from exc
 
-        body = json.dumps(payload, ensure_ascii=False)
+        if isinstance(payload, str):
+            body = payload
+        else:
+            body = json.dumps(payload, ensure_ascii=False)
         messages = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=body),
@@ -40,6 +43,7 @@ class LangChainProviderClient:
         usage: dict[str, Any] = {}
         finish_reason = ""
         raw_chunks: list[Any] = []
+        stream_error: Exception | None = None
         try:
             for chunk in model.stream(messages):
                 raw_chunks.append(chunk)
@@ -54,7 +58,26 @@ class LangChainProviderClient:
                 if chunk_usage:
                     usage.update(chunk_usage)
         except Exception as exc:
-            raise ProviderInvocationError(f"stream invocation failed: {exc}") from exc
+            stream_error = exc
+
+        # Some providers/endpoints do not emit token chunks reliably.
+        # Fall back to non-stream invoke so debug mode does not appear stuck.
+        if stream_error is not None or not text_parts:
+            try:
+                response = model.invoke(messages)
+            except Exception as exc:
+                if stream_error is not None:
+                    raise ProviderInvocationError(
+                        f"stream invocation failed: {stream_error}; invoke fallback failed: {exc}"
+                    ) from exc
+                raise ProviderInvocationError(
+                    f"invoke fallback failed: {exc}"
+                ) from exc
+
+            normalized = normalize_chat_response(response)
+            if normalized.text:
+                on_token(normalized.text)
+            return normalized
 
         return NormalizedResponse(
             text="".join(text_parts),

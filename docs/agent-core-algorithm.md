@@ -10,7 +10,7 @@ Any change to routing, loop termination, tool execution, model prompt contract, 
 - Runtime loop: `reason -> act -> observe -> (loop | compose_reply)`
 - Deterministic reason-stage routing rules
 - Tool execution and policy gate behavior
-- Model prompt contract used by `general_reply` tool
+- Model prompt contract used by `general_reply` tool (working-dir prompt files)
 - Streaming behavior in provider client
 - Known design problems
 
@@ -90,6 +90,7 @@ flowchart TD
 
 - Files:
   - `src/teambot/agents/core/executor.py`
+  - `src/teambot/agents/prompts/system_prompt.py`
   - `src/teambot/agents/prompts/general_reply.py`
   - `src/teambot/agents/tools/builtin.py`
 - Behavior:
@@ -97,34 +98,28 @@ flowchart TD
   - If denied (`high` risk not allowed), returns blocked result.
   - If allowed, invokes selected action through unified action registry.
 
-#### 3.1 `general_reply` model prompt (exact)
+#### 3.1 `general_reply` model prompt source
 
 Used only when provider manager exists and has `agent_model` role binding.
+Prompt is composed from working-directory markdown files in this order:
 
-```text
-You are TeamBot's message tool. Return a single JSON object only. No markdown.
-Schema: {
-  "message": string
-}
-Rules:
-- Keep message concise, practical, and user-facing.
-- Do not include JSON outside the object.
-- Do not include tool/planner internals.
-```
+1. `AGENTS.md` (required)
+2. `SOUL.md` (optional)
+3. `PROFILE.md` (optional)
 
-#### 3.2 `general_reply` payload keys
+Then runtime reply rules are appended by `general_reply` prompt builder.
 
-- `event_type`
-- `user_text`
-- `reaction`
-- `conversation_key`
-- `react_step`
-- `last_observation`
+#### 3.2 `general_reply` user message input
 
-#### 3.3 `general_reply` output validation
+`general_reply` sends a plain text user message including:
+- latest `event_type`
+- latest `reaction`
+- latest user message text
 
-- Expects model JSON object with `message` string.
-- If provider invocation fails or `message` is invalid/empty, tool falls back to deterministic local message.
+#### 3.3 `general_reply` output handling
+
+- Model output is consumed as plain text (no JSON required).
+- If provider invocation fails or output is empty, tool falls back to deterministic local message.
 
 ### 4) Observe
 
@@ -166,7 +161,7 @@ LangChain is used in provider client adapters, not in runtime control-flow files
 
 Runtime call chain for model reply generation:
 
-- `general_reply tool` -> `ProviderManager.invoke_role_json(...)` -> `LangChainProviderClient`
+- `general_reply tool` -> `ProviderManager.invoke_role_text(...)` -> `LangChainProviderClient`
 
 ## Streaming Behavior
 
@@ -192,6 +187,7 @@ Update this document whenever any of the following changes:
 - `src/teambot/agents/core/graph.py`
 - `src/teambot/agents/core/executor.py`
 - `src/teambot/agents/tools/builtin.py`
+- `src/teambot/agents/prompts/system_prompt.py`
 - `src/teambot/agents/prompts/general_reply.py`
 - `src/teambot/agents/providers/router.py`
 - `src/teambot/agents/providers/clients.py`

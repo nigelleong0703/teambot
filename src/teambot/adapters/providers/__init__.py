@@ -8,21 +8,22 @@ from ...agents.providers.base import (
     ProviderRoleBinding,
     ProviderSettings,
 )
-from ...agents.providers.config import ROLE_AGENT, ROLE_ROUTER
+from ...agents.providers.config import ROLE_AGENT
 from ...agents.providers.router import (
     ProviderInvocationResult,
     ProviderManager,
+    ProviderTextResult,
     build_default_provider_manager,
 )
 
 __all__ = [
     "ROLE_AGENT",
-    "ROLE_ROUTER",
     "ProviderAttempt",
     "ProviderConfigError",
     "ProviderEndpoint",
     "ProviderInvocationError",
     "ProviderInvocationResult",
+    "ProviderTextResult",
     "ProviderManager",
     "ProviderRoleBinding",
     "ProviderSettings",
