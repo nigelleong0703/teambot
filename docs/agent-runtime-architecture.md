@@ -6,7 +6,7 @@
 flowchart LR
   U["User Input"] --> R["Deterministic Reason Router"]
   R --> X["Executor (skill/tool)"]
-  X -->|"general_reply may call agent_model"| M["Provider Manager + LangChain Adapter"]
+  X -->|"message_reply may call agent_model"| M["Provider Manager + LangChain Adapter"]
   X --> O["Observe"]
   O --> C["Compose Reply"]
   C --> U2["Bot Reply"]

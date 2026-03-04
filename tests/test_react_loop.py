@@ -15,7 +15,7 @@ def test_react_graph_can_chain_follow_up_skill() -> None:
     def second_skill(_state: AgentState) -> dict[str, str]:
         return {"message": "second step done"}
 
-    registry.register(SkillManifest(name="general_reply", description=""), first_skill)
+    registry.register(SkillManifest(name="message_reply", description=""), first_skill)
     registry.register(SkillManifest(name="second", description=""), second_skill)
     registry.register(SkillManifest(name="create_task", description=""), second_skill)
     registry.register(SkillManifest(name="handle_reaction", description=""), second_skill)

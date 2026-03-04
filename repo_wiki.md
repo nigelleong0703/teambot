@@ -7,7 +7,7 @@
 - 主循环：`reason -> act -> observe -> (loop | compose_reply)`
 - `reason` 是确定性规则路由（不是 model planner）
 - skills/tool 显式注册，统一到一个 action surface
-- `general_reply` 是默认 message tool（可走模型，也可本地回退）
+- `message_reply` 是默认 message tool（可走模型，也可本地回退）
 - 线程路由与事件幂等是硬约束
 
 ## 2. 先看这 4 个文件（最快理解路径）
@@ -45,7 +45,7 @@
   核心 runtime 节点与循环控制
 
 - `src/teambot/agents/tools/*`
-  tool registry 与 builtin tools（含 `general_reply`）
+  tool registry 与 builtin tools（含 `message_reply`）
 
 - `src/teambot/agents/skills/*`
   skill registry、builtin skills、active skills 生命周期
@@ -86,14 +86,14 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
   - `langchain_openai.ChatOpenAI`
   - `langchain_anthropic.ChatAnthropic`
 
-调用链：`general_reply tool -> provider_manager -> provider_client(langchain)`
+调用链：`message_reply tool -> provider_manager -> provider_client(langchain)`
 
 ## 7. 关键行为规则（当前实现）
 
 - `reason` 优先级：`max-step` -> `next_skill` -> `default action` -> `first available`
 - `react_done=true` 会直接走 `compose_reply`
 - `observe` 阶段若无 `next_skill`，默认结束
-- `general_reply` 是 low-risk message tool（不是 skill）
+- `message_reply` 是 low-risk message tool（不是 skill）
 - 高风险 action 必须经过 policy gate
 - 流式输出是否“细粒度”，取决于 provider chunk 粒度
 

@@ -25,8 +25,8 @@ def _select_action(name: str, note: str) -> dict:
 def _resolve_default_action(action_registry: ActionRegistry) -> str:
     manifests = action_registry.list_manifests()
     action_names = {manifest.name for manifest in manifests}
-    if "general_reply" in action_names:
-        return "general_reply"
+    if "message_reply" in action_names:
+        return "message_reply"
     if manifests:
         return manifests[0].name
     return ""
