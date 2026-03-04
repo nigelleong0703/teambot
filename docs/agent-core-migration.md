@@ -16,9 +16,8 @@ Execution path is now:
 Use generic model environment variables:
 
 - `AGENT_PROVIDER`, `AGENT_MODEL`, `AGENT_API_KEY`, `AGENT_BASE_URL`, `AGENT_TIMEOUT_SECONDS`
-- `ROUTER_PROVIDER`, `ROUTER_MODEL`, `ROUTER_API_KEY`, `ROUTER_BASE_URL`, `ROUTER_TIMEOUT_SECONDS`
-- `AGENT_MAX_ATTEMPTS`, `ROUTER_MAX_ATTEMPTS` (bounded failover attempts)
-- `AGENT_FALLBACKS_JSON`, `ROUTER_FALLBACKS_JSON` (ordered fallback providers for each role)
+- `AGENT_MAX_ATTEMPTS` (bounded failover attempts)
+- `AGENT_FALLBACKS_JSON` (ordered fallback providers)
 
 ### 2. Risk Policy Configuration
 
