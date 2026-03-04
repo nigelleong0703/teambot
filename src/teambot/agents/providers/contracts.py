@@ -56,6 +56,7 @@ class ProviderClient(Protocol):
         system_prompt: str,
         payload: dict[str, Any] | str,
         on_token: Callable[[str], None] | None = None,
+        on_reasoning: Callable[[str], None] | None = None,
     ) -> NormalizedResponse:
         ...
 

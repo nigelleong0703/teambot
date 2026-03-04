@@ -6,14 +6,14 @@ from typing import Callable
 import pytest
 
 from teambot.agents.planner import PlannerError, ReasoningModelPlanner
-from teambot.agents.providers.base import (
+from teambot.agents.providers.contracts import (
     NormalizedResponse,
     ProviderEndpoint,
     ProviderRoleBinding,
     ProviderSettings,
 )
-from teambot.agents.providers.registry import ProviderClientRegistry
-from teambot.agents.providers.router import ROLE_AGENT, ProviderManager
+from teambot.agents.providers.manager import ProviderClientRegistry, ProviderManager
+from teambot.agents.providers.settings import ROLE_AGENT
 from teambot.agents.skills.registry import SkillManifest
 from teambot.models import AgentState
 

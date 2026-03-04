@@ -4,9 +4,9 @@ import os
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from .providers.base import ProviderEndpoint, ProviderInvocationError
-from .providers.clients import LangChainProviderClient
-from .providers.normalize import extract_json_object
+from .providers.contracts import ProviderEndpoint, ProviderInvocationError
+from .providers.langchain_client import LangChainProviderClient
+from .providers.manager import extract_json_object
 
 
 class AdapterError(RuntimeError):
@@ -110,4 +110,3 @@ def _read_env(primary: str, fallback: str | None) -> str:
     if fallback:
         return os.getenv(fallback, "").strip()
     return ""
-

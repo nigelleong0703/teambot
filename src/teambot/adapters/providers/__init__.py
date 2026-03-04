@@ -1,6 +1,6 @@
 """Provider adapters exposed behind stable adapter imports."""
 
-from ...agents.providers.base import (
+from ...agents.providers.contracts import (
     ProviderAttempt,
     ProviderConfigError,
     ProviderEndpoint,
@@ -8,8 +8,8 @@ from ...agents.providers.base import (
     ProviderRoleBinding,
     ProviderSettings,
 )
-from ...agents.providers.config import ROLE_AGENT
-from ...agents.providers.router import (
+from ...agents.providers.settings import ROLE_AGENT
+from ...agents.providers.manager import (
     ProviderInvocationResult,
     ProviderManager,
     ProviderTextResult,

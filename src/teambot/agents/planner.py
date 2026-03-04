@@ -45,23 +45,12 @@ class RulePlanner:
         available_skills: list[SkillManifest],
     ) -> PlanResult:
         skill_names = {s.name for s in available_skills}
-        if state["event_type"] == "reaction_added" and "handle_reaction" in skill_names:
-            return PlanResult(
-                selected_skill="handle_reaction",
-                note="Rule planner: reaction_added -> handle_reaction",
-            )
-
-        text = state["user_text"].strip().lower()
-        if text.startswith("/todo") and "create_task" in skill_names:
-            return PlanResult(
-                selected_skill="create_task",
-                note="Rule planner: /todo -> create_task",
-            )
-
         default_skill = "general_reply" if "general_reply" in skill_names else ""
+        if not default_skill and available_skills:
+            default_skill = available_skills[0].name
         return PlanResult(
             selected_skill=default_skill,
-            note="Rule planner: default -> general_reply",
+            note=f"Rule planner: default -> {default_skill or 'finish'}",
         )
 
 

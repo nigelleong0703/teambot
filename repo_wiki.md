@@ -68,10 +68,9 @@
 
 - `src/teambot/agents/prompts/system_prompt.py`
   - 从工作目录读取 `AGENTS.md`（required）+ `SOUL.md` + `PROFILE.md`
-- `src/teambot/agents/prompts/general_reply.py`
-  - `build_general_reply_prompt_bundle`（统一返回 `system_prompt + user_message`）
 - `src/teambot/agents/tools/builtin.py`
-  - `_GeneralReplyTool.__call__` 里调用 provider manager text invocation
+  - `_GeneralReplyTool.__call__` 里直接使用 `build_system_prompt_from_working_dir()`
+  - `user_message` 直接取 `state.user_text`
   - 返回自然语言文本（JSON 非必须）
 
 `reason/observe/compose` 是确定性代码阶段，没有 LLM prompt。
@@ -80,7 +79,7 @@
 
 LangChain 只在 provider client 层使用，不在 core runtime 层：
 
-- `src/teambot/agents/providers/clients.py`
+- `src/teambot/agents/providers/langchain_client.py`
   - `langchain_core.messages`
   - `langchain_openai.ChatOpenAI`
   - `langchain_anthropic.ChatAnthropic`
@@ -89,7 +88,7 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 
 ## 7. 关键行为规则（当前实现）
 
-- `reason` 优先级：`max-step` -> `next_skill` -> `reaction rule` -> `/todo rule` -> `general_reply`
+- `reason` 优先级：`max-step` -> `next_skill` -> `default action` -> `first available`
 - `react_done=true` 会直接走 `compose_reply`
 - `observe` 阶段若无 `next_skill`，默认结束
 - `general_reply` 是 low-risk message tool（不是 skill）

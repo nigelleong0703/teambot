@@ -1,4 +1,4 @@
-from .base import (
+from .contracts import (
     NormalizedResponse,
     ProviderAttempt,
     ProviderConfigError,
@@ -7,14 +7,25 @@ from .base import (
     ProviderRoleBinding,
     ProviderSettings,
 )
-from .config import ROLE_AGENT, load_provider_settings_from_env
-from .normalize import extract_json_object, normalize_chat_response
-from .registry import ProviderClientRegistry
-from .router import (
+from .settings import (
+    ROLE_AGENT,
+    SUPPORTED_PROVIDERS,
+    default_base_url_for_provider,
+    is_anthropic_provider,
+    is_openai_compatible_provider,
+    is_supported_provider,
+    load_provider_settings_from_env,
+    normalize_provider_name,
+    provider_api_key_envs,
+)
+from .langchain_client import LangChainProviderClient, normalize_chat_response
+from .manager import (
+    ProviderClientRegistry,
     ProviderInvocationResult,
     ProviderManager,
     ProviderTextResult,
     build_default_provider_manager,
+    extract_json_object,
 )
 
 __all__ = [
@@ -27,8 +38,16 @@ __all__ = [
     "ProviderSettings",
     "ROLE_AGENT",
     "load_provider_settings_from_env",
+    "SUPPORTED_PROVIDERS",
+    "normalize_provider_name",
+    "is_supported_provider",
+    "is_openai_compatible_provider",
+    "is_anthropic_provider",
+    "default_base_url_for_provider",
+    "provider_api_key_envs",
     "extract_json_object",
     "normalize_chat_response",
+    "LangChainProviderClient",
     "ProviderClientRegistry",
     "ProviderInvocationResult",
     "ProviderTextResult",

@@ -10,7 +10,7 @@ Any change to routing, loop termination, tool execution, model prompt contract, 
 - Runtime loop: `reason -> act -> observe -> (loop | compose_reply)`
 - Deterministic reason-stage routing rules
 - Tool execution and policy gate behavior
-- Model prompt contract used by `general_reply` tool (working-dir prompt files)
+- Model prompt contract used by `general_reply` tool (working-dir system prompt)
 - Streaming behavior in provider client
 - Known design problems
 
@@ -54,15 +54,11 @@ flowchart TD
     R3B -- "yes" --> R3C["selected_skill=default action"]
     R3B -- "no" --> R3D["react_done=true, finish"]
 
-    R2 -- "no" --> R4{"event_type == reaction_added and handle_reaction exists?"}
-    R4 -- "yes" --> R4A["selected_skill=handle_reaction"]
-    R4 -- "no" --> R5{"user_text starts with /todo and create_task exists?"}
-    R5 -- "yes" --> R5A["selected_skill=create_task"]
-    R5 -- "no" --> R6{"general_reply exists?"}
-    R6 -- "yes" --> R6A["selected_skill=general_reply"]
-    R6 -- "no" --> R7{"any action exists?"}
-    R7 -- "yes" --> R7A["selected_skill=first available"]
-    R7 -- "no" --> R7B["react_done=true, finish"]
+    R2 -- "no" --> R4{"default action exists?"}
+    R4 -- "yes" --> R4A["selected_skill=default action"]
+    R4 -- "no" --> R5{"any action exists?"}
+    R5 -- "yes" --> R5A["selected_skill=first available"]
+    R5 -- "no" --> R5B["react_done=true, finish"]
 ```
 
 ## Stage-by-Stage Contract
@@ -83,7 +79,8 @@ flowchart TD
 
 - File: `src/teambot/agents/core/router.py`
 - Model prompt: none.
-- Responsibility: pick next action or mark done using fixed priority rules only.
+- Responsibility: pick next action or mark done using ReAct state only.
+- No event/command hardcoded routing (`reaction_added`, `/todo`) is applied in reason stage.
 - Important: runtime does **not** call a planner model here.
 
 ### 3) Act (Unified Action + Policy Gate)
@@ -91,7 +88,6 @@ flowchart TD
 - Files:
   - `src/teambot/agents/core/executor.py`
   - `src/teambot/agents/prompts/system_prompt.py`
-  - `src/teambot/agents/prompts/general_reply.py`
   - `src/teambot/agents/tools/builtin.py`
 - Behavior:
   - `ExecutionPolicyGate` evaluates action risk first.
@@ -101,20 +97,15 @@ flowchart TD
 #### 3.1 `general_reply` model prompt source
 
 Used only when provider manager exists and has `agent_model` role binding.
-Prompt is composed from working-directory markdown files in this order:
+System prompt is composed from working-directory markdown files in this order:
 
 1. `AGENTS.md` (required)
 2. `SOUL.md` (optional)
 3. `PROFILE.md` (optional)
 
-Then runtime reply rules are appended by `general_reply` prompt builder.
-
 #### 3.2 `general_reply` user message input
 
-`general_reply` sends a plain text user message including:
-- latest `event_type`
-- latest `reaction`
-- latest user message text
+`general_reply` sends the latest user message text directly (`state.user_text`).
 
 #### 3.3 `general_reply` output handling
 
@@ -154,7 +145,7 @@ A runtime loop guard (`react_max_steps + 2`) still exists in `AgentCoreRuntime.i
 
 LangChain is used in provider client adapters, not in runtime control-flow files:
 
-- `src/teambot/agents/providers/clients.py`
+- `src/teambot/agents/providers/langchain_client.py`
   - `langchain_core.messages`
   - `langchain_openai.ChatOpenAI`
   - `langchain_anthropic.ChatAnthropic`
@@ -166,8 +157,8 @@ Runtime call chain for model reply generation:
 ## Streaming Behavior
 
 - Files:
-  - `src/teambot/agents/providers/router.py`
-  - `src/teambot/agents/providers/clients.py`
+  - `src/teambot/agents/providers/manager.py`
+  - `src/teambot/agents/providers/langchain_client.py`
 - If token callbacks are present, provider client attempts `model.stream(...)`.
 - If stream fails or yields no chunks, client falls back to `model.invoke(...)`.
 - Therefore visible UX can look like pseudo-streaming when upstream providers emit coarse chunks.
@@ -188,8 +179,7 @@ Update this document whenever any of the following changes:
 - `src/teambot/agents/core/executor.py`
 - `src/teambot/agents/tools/builtin.py`
 - `src/teambot/agents/prompts/system_prompt.py`
-- `src/teambot/agents/prompts/general_reply.py`
-- `src/teambot/agents/providers/router.py`
-- `src/teambot/agents/providers/clients.py`
+- `src/teambot/agents/providers/manager.py`
+- `src/teambot/agents/providers/langchain_client.py`
 - `src/teambot/agents/core/state.py`
 - `src/teambot/agents/core/service.py`

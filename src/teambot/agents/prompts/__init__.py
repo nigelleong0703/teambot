@@ -1,7 +1,7 @@
 """Prompt builders for agent tools and runtime integrations."""
 
-from .general_reply import build_general_reply_prompt_bundle
+from .system_prompt import build_system_prompt_from_working_dir
 
 __all__ = [
-    "build_general_reply_prompt_bundle",
+    "build_system_prompt_from_working_dir",
 ]

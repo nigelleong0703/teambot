@@ -5,7 +5,7 @@ from teambot.agents.service import AgentService
 
 
 @pytest.mark.asyncio
-async def test_todo_message_selects_create_task_skill() -> None:
+async def test_todo_message_uses_default_message_action() -> None:
     service = AgentService()
     event = InboundEvent(
         event_id="evt-2",
@@ -19,12 +19,12 @@ async def test_todo_message_selects_create_task_skill() -> None:
 
     reply = await service.process_event(event)
 
-    assert reply.skill_name == "create_task"
-    assert "Task recorded" in reply.text
+    assert reply.skill_name == "general_reply"
+    assert reply.text
 
 
 @pytest.mark.asyncio
-async def test_reaction_event_selects_reaction_skill() -> None:
+async def test_reaction_event_uses_default_message_action() -> None:
     service = AgentService()
     event = InboundEvent(
         event_id="evt-3",
@@ -38,5 +38,5 @@ async def test_reaction_event_selects_reaction_skill() -> None:
 
     reply = await service.process_event(event)
 
-    assert reply.skill_name == "handle_reaction"
-    assert "in progress" in reply.text
+    assert reply.skill_name == "general_reply"
+    assert reply.text

@@ -5,16 +5,19 @@ from typing import Callable
 
 import pytest
 
-from teambot.agents.providers.base import (
+from teambot.agents.providers.contracts import (
     NormalizedResponse,
     ProviderEndpoint,
     ProviderInvocationError,
     ProviderRoleBinding,
     ProviderSettings,
 )
-from teambot.agents.providers.normalize import extract_json_object, normalize_chat_response
-from teambot.agents.providers.registry import ProviderClientRegistry
-from teambot.agents.providers.router import ProviderManager
+from teambot.agents.providers.langchain_client import normalize_chat_response
+from teambot.agents.providers.manager import (
+    ProviderClientRegistry,
+    ProviderManager,
+    extract_json_object,
+)
 
 
 @dataclass

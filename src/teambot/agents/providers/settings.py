@@ -4,11 +4,64 @@ import json
 import os
 from typing import Any
 
-from .base import ProviderConfigError, ProviderEndpoint, ProviderRoleBinding, ProviderSettings
-
+from .contracts import (
+    ProviderConfigError,
+    ProviderEndpoint,
+    ProviderRoleBinding,
+    ProviderSettings,
+)
 
 ROLE_AGENT = "agent_model"
-ROLE_ROUTER = "router_model"
+
+OPENAI_COMPATIBLE_PROVIDER = "openai-compatible"
+OPENAI_PROVIDER = "openai"
+ANTHROPIC_PROVIDER = "anthropic"
+
+SUPPORTED_PROVIDERS = (
+    OPENAI_COMPATIBLE_PROVIDER,
+    OPENAI_PROVIDER,
+    ANTHROPIC_PROVIDER,
+)
+
+_PROVIDER_ALIASES = {
+    "openai_compatible": OPENAI_COMPATIBLE_PROVIDER,
+    "openai-compatible": OPENAI_COMPATIBLE_PROVIDER,
+    "openai": OPENAI_PROVIDER,
+    "anthropic": ANTHROPIC_PROVIDER,
+}
+
+
+def normalize_provider_name(provider: str) -> str:
+    normalized = provider.strip().lower().replace("_", "-")
+    return _PROVIDER_ALIASES.get(normalized, normalized)
+
+
+def is_supported_provider(provider: str) -> bool:
+    return normalize_provider_name(provider) in SUPPORTED_PROVIDERS
+
+
+def is_openai_compatible_provider(provider: str) -> bool:
+    normalized = normalize_provider_name(provider)
+    return normalized in {OPENAI_COMPATIBLE_PROVIDER, OPENAI_PROVIDER}
+
+
+def is_anthropic_provider(provider: str) -> bool:
+    return normalize_provider_name(provider) == ANTHROPIC_PROVIDER
+
+
+def default_base_url_for_provider(provider: str) -> str | None:
+    if is_openai_compatible_provider(provider):
+        return "https://api.openai.com/v1"
+    return None
+
+
+def provider_api_key_envs(provider: str) -> tuple[str, ...]:
+    normalized = normalize_provider_name(provider)
+    if normalized == ANTHROPIC_PROVIDER:
+        return ("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY")
+    if normalized in {OPENAI_COMPATIBLE_PROVIDER, OPENAI_PROVIDER}:
+        return ("OPENAI_API_KEY",)
+    return ()
 
 
 def load_provider_settings_from_env() -> ProviderSettings:
@@ -20,13 +73,6 @@ def load_provider_settings_from_env() -> ProviderSettings:
     )
     if agent is not None:
         bindings[ROLE_AGENT] = agent
-
-    router = _build_role_binding(
-        role=ROLE_ROUTER,
-        role_env="ROUTER",
-    )
-    if router is not None:
-        bindings[ROLE_ROUTER] = router
 
     return ProviderSettings(role_bindings=bindings)
 
@@ -60,14 +106,20 @@ def _build_primary_endpoint(role_env: str) -> ProviderEndpoint | None:
     if not model:
         return None
 
-    provider = (
+    provider = normalize_provider_name(
         _read_env(f"{role_env}_PROVIDER")
-        or "openai-compatible"
+        or OPENAI_COMPATIBLE_PROVIDER
     )
+    if not is_supported_provider(provider):
+        raise ProviderConfigError(
+            f"{role_env}_PROVIDER unsupported value '{provider}'. "
+            f"supported={', '.join(SUPPORTED_PROVIDERS)}"
+        )
     api_key = _resolve_api_key(role_env=role_env, provider=provider)
     base_url = (
         _read_env(f"{role_env}_BASE_URL")
-        or "https://api.openai.com/v1"
+        or default_base_url_for_provider(provider)
+        or None
     )
     timeout_raw = _read_env(f"{role_env}_TIMEOUT_SECONDS") or "20"
     timeout_seconds = int(timeout_raw) if timeout_raw.isdigit() else 20
@@ -104,11 +156,16 @@ def _read_fallback_endpoints(role_env: str) -> list[ProviderEndpoint]:
 
 
 def _endpoint_from_dict(raw: dict[str, Any], env_name: str) -> ProviderEndpoint:
-    provider = str(raw.get("provider", "")).strip()
+    provider = normalize_provider_name(str(raw.get("provider", "")).strip())
     model = str(raw.get("model", "")).strip()
     if not provider or not model:
         raise ProviderConfigError(
             f"{env_name}_FALLBACKS_JSON item requires provider and model"
+        )
+    if not is_supported_provider(provider):
+        raise ProviderConfigError(
+            f"{env_name}_FALLBACKS_JSON item has unsupported provider '{provider}'. "
+            f"supported={', '.join(SUPPORTED_PROVIDERS)}"
         )
     timeout_raw = raw.get("timeout_seconds", 20)
     timeout_seconds = int(timeout_raw) if isinstance(timeout_raw, (int, float)) else 20
@@ -135,17 +192,10 @@ def _resolve_api_key(*, role_env: str, provider: str) -> str | None:
     if direct:
         return direct
 
-    normalized = provider.strip().lower()
-    if normalized == "anthropic":
-        return (
-            _read_env("ANTHROPIC_AUTH_TOKEN")
-            or _read_env("ANTHROPIC_API_KEY")
-            or None
-        )
-
-    if normalized in {"openai", "openai-compatible", "openai_compatible"}:
-        return _read_env("OPENAI_API_KEY") or None
-
+    for env_name in provider_api_key_envs(provider):
+        value = _read_env(env_name)
+        if value:
+            return value
     return None
 
 

@@ -48,5 +48,5 @@ async def test_bootstrapped_service_handles_message_and_reaction() -> None:
         reaction="eyes",
     )
     reaction_reply = await service.process_event(reaction_event)
-    assert reaction_reply.skill_name == "handle_reaction"
+    assert reaction_reply.skill_name == "general_reply"
     assert reaction_reply.text

@@ -59,29 +59,11 @@ def _route_follow_up(
     )
 
 
-def _route_event_or_command(state: AgentState, action_registry: ActionRegistry) -> dict | None:
-    if state.get("event_type") == "reaction_added" and action_registry.has_action(
-        "handle_reaction"
-    ):
-        return _select_action(
-            "handle_reaction",
-            "Deterministic route: reaction_added -> handle_reaction",
-        )
-
-    text = str(state.get("user_text", "")).strip().lower()
-    if text.startswith("/todo") and action_registry.has_action("create_task"):
-        return _select_action(
-            "create_task",
-            "Deterministic route: /todo -> create_task",
-        )
-    return None
-
-
 def _route_default(action_registry: ActionRegistry, default_action: str) -> dict:
     if default_action:
         return _select_action(
             default_action,
-            f"Deterministic route: default -> {default_action}",
+            f"ReAct route: default action -> {default_action}",
         )
 
     manifests = action_registry.list_manifests()
@@ -89,7 +71,7 @@ def _route_default(action_registry: ActionRegistry, default_action: str) -> dict
         first_action = manifests[0].name
         return _select_action(
             first_action,
-            f"Deterministic route: first available -> {first_action}",
+            f"ReAct route: first available action -> {first_action}",
         )
     return _finish("No action is registered; finish safely.")
 
@@ -110,10 +92,6 @@ def build_reason_node(action_registry: ActionRegistry):
         )
         if follow_up_route is not None:
             return follow_up_route
-
-        event_or_command_route = _route_event_or_command(state, action_registry)
-        if event_or_command_route is not None:
-            return event_or_command_route
 
         return _route_default(action_registry, default_action)
 

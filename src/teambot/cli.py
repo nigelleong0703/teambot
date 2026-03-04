@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import time
 import uuid
 from typing import Any
@@ -20,6 +21,7 @@ class TeamBotCli:
         thread_ts: str,
         user_id: str,
         stream_model_tokens: bool = False,
+        show_model_payload: bool = False,
         service: AgentService | None = None,
     ) -> None:
         self.team_id = team_id
@@ -28,8 +30,10 @@ class TeamBotCli:
         self.user_id = user_id
         self.service = service or build_agent_service()
         self._stream_model_tokens = stream_model_tokens
+        self._show_model_payload = show_model_payload
         self._stream_line_open = False
-        if stream_model_tokens:
+        self._reasoning_line_open = False
+        if stream_model_tokens or show_model_payload:
             self.service.set_model_event_listener(self._on_model_event)
 
     async def run(self) -> None:
@@ -62,8 +66,24 @@ class TeamBotCli:
                 continue
             if raw == "/stream off":
                 self._stream_model_tokens = False
-                self.service.set_model_event_listener(None)
+                if self._show_model_payload:
+                    self.service.set_model_event_listener(self._on_model_event)
+                else:
+                    self.service.set_model_event_listener(None)
                 print("[system] stream_model_tokens=False")
+                continue
+            if raw == "/debug on":
+                self._show_model_payload = True
+                self.service.set_model_event_listener(self._on_model_event)
+                print("[system] debug_model_payload=True")
+                continue
+            if raw == "/debug off":
+                self._show_model_payload = False
+                if self._stream_model_tokens:
+                    self.service.set_model_event_listener(self._on_model_event)
+                else:
+                    self.service.set_model_event_listener(None)
+                print("[system] debug_model_payload=False")
                 continue
 
             event = self._build_event(raw)
@@ -117,27 +137,57 @@ class TeamBotCli:
         print("  /exit               exit CLI")
         print("  /newthread          start a new thread id")
         print("  /stream on|off      toggle model token streaming")
+        print("  /debug on|off       print prompt/payload and reasoning tokens (if available)")
         print("  /reaction <name>    send reaction_added event")
         print("Input any other text to send a message event")
 
     def _on_model_event(self, event: str, payload: dict[str, Any]) -> None:
-        if not self._stream_model_tokens:
+        if not self._stream_model_tokens and not self._show_model_payload:
             return
         if event == "model_start":
+            if self._show_model_payload:
+                print("[debug] model request")
+                print("[debug] system_prompt:")
+                print(self._as_text(payload.get("system_prompt")))
+                print("[debug] request_payload:")
+                print(self._as_text(payload.get("request_payload")))
             role = payload.get("role")
             provider = payload.get("provider")
             model = payload.get("model")
-            print(f"[stream] {role} {provider}/{model}> ", end="", flush=True)
-            self._stream_line_open = True
+            if self._stream_model_tokens:
+                print(f"[stream] {role} {provider}/{model}> ", end="", flush=True)
+                self._stream_line_open = True
             return
         if event == "model_token":
+            if not self._stream_model_tokens:
+                return
             token = str(payload.get("token", ""))
             if token:
                 print(token, end="", flush=True)
             return
+        if event == "model_reasoning_token":
+            if not self._show_model_payload:
+                return
+            token = str(payload.get("token", ""))
+            if not token:
+                return
+            if not self._reasoning_line_open:
+                print("[reason] ", end="", flush=True)
+                self._reasoning_line_open = True
+            print(token, end="", flush=True)
+            return
         if event in {"model_end", "model_error"} and self._stream_line_open:
             print()
             self._stream_line_open = False
+        if event in {"model_end", "model_error"} and self._reasoning_line_open:
+            print()
+            self._reasoning_line_open = False
+
+    @staticmethod
+    def _as_text(value: Any) -> str:
+        if isinstance(value, str):
+            return value
+        return json.dumps(value, ensure_ascii=False, indent=2, default=str)
 
 
 def parse_args() -> argparse.Namespace:
@@ -147,6 +197,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--thread-ts", default="1710000000.0001")
     parser.add_argument("--user-id", default="U1")
     parser.add_argument("--stream-model-tokens", action="store_true")
+    parser.add_argument("--show-model-payload", action="store_true")
     return parser.parse_args()
 
 
@@ -158,6 +209,7 @@ def main() -> None:
         thread_ts=args.thread_ts,
         user_id=args.user_id,
         stream_model_tokens=args.stream_model_tokens,
+        show_model_payload=args.show_model_payload,
         service=build_agent_service(),
     )
     asyncio.run(cli.run())
