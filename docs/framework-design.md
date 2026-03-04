@@ -1,11 +1,13 @@
 # TeamBot 框架设计文档（V1, Full-Parity Roadmap）
 
+> 注：本文件包含 roadmap 设计草案。当前代码主路径已移除 `planner.py`，运行时采用确定性 `reason -> act -> observe -> compose_reply`。
+
 ## 1. 背景
 
 当前项目已具备：
 
 - Agent Core ReAct 主循环（`reason -> act -> observe`）
-- 可选 reasoning model planner
+- 确定性 reason 路由（无模型 planner）
 - CoPaw 风格 skills 生命周期雏形（`builtin/customized/active`）
 
 下一阶段目标不是“再加几个功能”，而是把框架设计定型，保证后续扩展（开放工具、动态技能、低成本路由）不返工。
@@ -195,7 +197,7 @@ flowchart LR
 | Router Node | `src/teambot/agents/core/router.py` | reason 节点与 reason 后路由决策 |
 | Executor Nodes | `src/teambot/agents/core/executor.py` | `act/observe/compose_reply` 执行与收敛 |
 | State Builder | `src/teambot/agents/core/state.py` | `build_initial_state` 初始化状态 |
-| Planner | `src/teambot/agents/planner.py` | `RulePlanner` + `ReasoningModelPlanner` |
+| Planner | （已移除） | 历史设计项，当前运行时不使用 |
 | Skills Registry | `src/teambot/agents/skills/registry.py` | 技能注册、查找、调用 |
 | Builtin Skills | `src/teambot/agents/skills/builtin.py` | 内置 handler 实现 |
 | Skills Lifecycle | `src/teambot/agents/skills/manager.py` | `builtin/customized/active` 同步与启停 |
@@ -236,7 +238,7 @@ flowchart LR
 
 回退：
 
-- planner 失败 -> `RulePlanner`
+- planner 失败 -> 回退到默认 action 或安全结束
 - 非法技能 -> 默认技能或终止回复
 
 扩展要求（对齐 CoPaw 路线）：
@@ -260,9 +262,9 @@ flowchart LR
    - 输出：结构化 `PlanResult`
 
 3. 决策边界
-   - 简单任务：规则 planner 可直接给出技能
+   - 简单任务：确定性 reason 规则直接给出技能
    - 复杂/开放任务：进入主 Agent 模型推理
-   - 失败回退：agent_model -> RulePlanner -> 默认技能
+   - 失败回退：agent_model -> 默认 action -> 安全结束
 
 ### 5.2.2 多 Provider 模型管理
 
@@ -335,7 +337,7 @@ Policy Gate 必须校验：
    - 继续执行：`selected_skill + skill_input`
    - 直接结束：`react_done=true + skill_output.message`
 3. 回退：
-   - planner 异常 -> `RulePlanner`
+   - planner 异常 -> 默认 action 或安全结束
    - 非法技能 -> 默认技能（若存在）
 
 `act` 节点：
@@ -361,7 +363,7 @@ Policy Gate 必须校验：
 ### 5.6 失败与回退模型
 
 1. 路由失败：退回默认技能路径。
-2. planner 失败：退回 `RulePlanner`。
+2. planner 失败：退回默认 action 或安全结束。
 3. 非法技能名：退回默认技能或直接结束。
 4. 达到最大步数：强制结束。
 5. 技能执行异常：返回可见错误上下文，避免静默失败。
