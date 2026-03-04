@@ -118,7 +118,3 @@ def build_reason_node(action_registry: ActionRegistry):
         return _route_default(action_registry, default_action)
 
     return _reason
-
-
-def route_after_reason(state: AgentState) -> str:
-    return "compose_reply" if state.get("react_done", False) else "act"

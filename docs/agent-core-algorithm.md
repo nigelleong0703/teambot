@@ -146,12 +146,12 @@ Rules:
 
 `react_done` is the stop flag used by router transitions:
 
-- `route_after_reason`:
+- after `reason`:
   - `react_done=true` -> `compose_reply`
-  - `react_done=false` -> `act`
-- `route_after_observe`:
+  - `react_done=false` -> continue to `act`
+- after `observe`:
   - `react_done=true` -> `compose_reply`
-  - `react_done=false` -> `reason`
+  - `react_done=false` -> next loop iteration
 
 A runtime loop guard (`react_max_steps + 2`) still exists in `AgentCoreRuntime.invoke` to force-safe completion if unexpected loops occur.
 

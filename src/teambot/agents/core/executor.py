@@ -60,10 +60,6 @@ def observe_node(state: AgentState) -> dict:
     }
 
 
-def route_after_observe(state: AgentState) -> str:
-    return "compose_reply" if state.get("react_done", True) else "reason"
-
-
 def compose_reply_node(state: AgentState) -> dict:
     message = str(state.get("skill_output", {}).get("message", ""))
     if not message:

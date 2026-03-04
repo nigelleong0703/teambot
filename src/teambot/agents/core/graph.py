@@ -5,14 +5,9 @@ from ...agent_core.contracts import ActionPluginRegistry
 from ..skills.registry import SkillRegistry
 from ..tools.registry import ToolRegistry
 from .actions import ActionRegistry
-from .executor import (
-    build_act_node,
-    compose_reply_node,
-    observe_node,
-    route_after_observe,
-)
+from .executor import build_act_node, compose_reply_node, observe_node
 from .policy import ExecutionPolicyGate
-from .router import build_reason_node, route_after_reason
+from .router import build_reason_node
 
 _RUNTIME_GUARD_PADDING = 2
 _RUNTIME_GUARD_MIN = 3
@@ -33,6 +28,11 @@ def _finalize_guard_exit(state: AgentState) -> AgentState:
     return state
 
 
+def _compose_and_return(state: AgentState) -> AgentState:
+    state.update(compose_reply_node(state))
+    return state
+
+
 class AgentCoreRuntime:
     def __init__(
         self,
@@ -49,17 +49,13 @@ class AgentCoreRuntime:
 
         for _ in range(loop_guard):
             current.update(self.reason_node(current))
-            next_step = route_after_reason(current)
-            if next_step == "compose_reply":
-                current.update(compose_reply_node(current))
-                return current
+            if current.get("react_done", False):
+                return _compose_and_return(current)
 
             current.update(self.act_node(current))
             current.update(observe_node(current))
-            next_step = route_after_observe(current)
-            if next_step == "compose_reply":
-                current.update(compose_reply_node(current))
-                return current
+            if current.get("react_done", True):
+                return _compose_and_return(current)
 
         return _finalize_guard_exit(current)
 
