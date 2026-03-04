@@ -6,10 +6,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _read(path: str) -> str:
-    return (ROOT / path).read_text(encoding="utf-8")
-
-
 def test_core_modules_do_not_import_provider_sdks() -> None:
     forbidden_tokens = ("langchain", "openai", "anthropic")
     core_dir = ROOT / "src" / "teambot" / "agents" / "core"
@@ -20,7 +16,9 @@ def test_core_modules_do_not_import_provider_sdks() -> None:
             assert token not in content, f"{file_path} imports forbidden token: {token}"
 
 
-def test_planner_uses_adapter_provider_surface() -> None:
-    content = _read("src/teambot/agents/planner.py")
-    assert "from ..adapters.providers import (" in content
-    assert "from .providers.router import (" not in content
+def test_legacy_planner_and_model_adapter_modules_removed() -> None:
+    planner_path = ROOT / "src" / "teambot" / "agents" / "planner.py"
+    model_adapter_path = ROOT / "src" / "teambot" / "agents" / "model_adapter.py"
+
+    assert not planner_path.exists()
+    assert not model_adapter_path.exists()

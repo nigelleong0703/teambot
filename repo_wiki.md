@@ -64,7 +64,7 @@
 
 ## 5. Prompt 在哪里
 
-当前核心流程里，model prompt 在 message tool，而不是 reason/planner：
+当前核心流程里，model prompt 在 message tool，而不是 reason 阶段：
 
 - `src/teambot/agents/prompts/system_prompt.py`
   - 从工作目录读取 `AGENTS.md`（required）+ `SOUL.md` + `PROFILE.md`
@@ -74,6 +74,8 @@
   - 返回自然语言文本（JSON 非必须）
 
 `reason/observe/compose` 是确定性代码阶段，没有 LLM prompt。
+
+> 说明：`src/teambot/agents/planner.py` 与 `src/teambot/agents/model_adapter.py` 已移除，不再作为运行时路径或兼容层维护。
 
 ## 6. LangChain 在哪里
 

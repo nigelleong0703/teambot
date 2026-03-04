@@ -18,7 +18,7 @@ This repository is designed to address the pain points discussed earlier:
 
 ## Architecture
 
-Router/Planner/Agent Core focused diagrams:
+Runtime/Agent Core focused diagrams:
 - `docs/agent-runtime-architecture.md`
 
 - `src/teambot/main.py`: FastAPI ingress/debug endpoints
@@ -27,9 +27,7 @@ Router/Planner/Agent Core focused diagrams:
 - `src/teambot/agents/core/router.py`: deterministic reason node + route guards
 - `src/teambot/agents/core/executor.py`: act/observe/compose nodes
 - `src/teambot/agents/core/state.py`: initial `AgentState` builder
-- `src/teambot/agents/planner.py`: legacy planner module kept for compatibility/experiments
-- `src/teambot/agents/providers/`: provider manager (`config/registry/router/normalize`, single `agent_model` role)
-- `src/teambot/agents/model_adapter.py`: compatibility shim around provider manager clients
+- `src/teambot/agents/providers/`: provider manager (`config/registry/failover/normalize`, single `agent_model` role)
 - `src/teambot/agents/skills/`: skill registry + builtin skills
 - `src/teambot/agents/tools/`: tool registry + builtin tools (default `general_reply` message tool)
 - `src/teambot/store.py`: in-memory conversation + idempotency store
@@ -37,7 +35,7 @@ Router/Planner/Agent Core focused diagrams:
 ## Run
 
 ```bash
-cd /Users/nigelleong/Desktop/personal/langgraph-virtual-employee-mvp
+cd /Users/nigelleong/Desktop/personal/teambot-mvp
 python3.10 -m venv .venv310
 source .venv310/bin/activate
 pip install -r requirements-dev.txt
@@ -219,7 +217,7 @@ Skill management APIs:
 ## Tests
 
 ```bash
-cd /Users/nigelleong/Desktop/personal/langgraph-virtual-employee-mvp
+cd /Users/nigelleong/Desktop/personal/teambot-mvp
 source .venv310/bin/activate
 PYTHONPATH=src pytest -q
 ```

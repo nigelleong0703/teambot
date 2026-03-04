@@ -15,7 +15,7 @@
   - API/CLI composition root and process entrypoints.
   - No business planning logic.
 - `src/teambot/agents`
-  - Runtime and planner implementation, progressively aligned to the new boundaries.
+  - Runtime implementation, progressively aligned to the new boundaries.
   - Backward-compatible import shims remain allowed during migration.
 
 ## 2. Allowed Dependency Direction
@@ -23,7 +23,7 @@
 Allowed:
 
 - `interfaces -> agents/agent_core/adapters/plugins`
-- `agents(core/runtime/planner) -> agent_core contracts`
+- `agents(core/runtime) -> agent_core contracts`
 - `adapters -> agent_core contracts`
 - `plugins -> agent_core contracts`
 
