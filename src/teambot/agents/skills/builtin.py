@@ -6,16 +6,6 @@ from .dynamic import load_dynamic_skills
 from .registry import SkillManifest, SkillRegistry
 
 
-def _general_reply(state: AgentState) -> dict[str, str]:
-    text = state["user_text"].strip()
-    return {
-        "message": (
-            "Acknowledged. The MVP currently replies using deterministic thread routing."
-            f"\n\nYou said: {text}"
-        ),
-    }
-
-
 def _create_task(state: AgentState) -> dict[str, str]:
     text = state["user_text"].strip()
     task_text = text.replace("/todo", "", 1).strip() or text
@@ -44,14 +34,6 @@ def build_registry(
         return enabled_skill_names is None or name in enabled_skill_names
 
     registry = SkillRegistry()
-    if is_enabled("general_reply"):
-        registry.register(
-            SkillManifest(
-                name="general_reply",
-                description="Default conversational response.",
-            ),
-            _general_reply,
-        )
     if is_enabled("create_task"):
         registry.register(
             SkillManifest(

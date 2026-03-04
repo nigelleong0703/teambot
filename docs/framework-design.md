@@ -245,40 +245,38 @@ flowchart LR
 - 支持技能文档 + 系统文档联合注入
 - 支持成本/风险预算决策（超限降级）
 
-### 5.2.1 双模型判断机制（Runner + Agent）
+### 5.2.1 单主模型机制（CoPaw 对齐）
 
-必须采用双模型，而不是单模型全流程：
+采用单主模型 + 非模型规则分流：
 
-1. Router Model（轻量模型）
-   - 位置：`Runner/Service` 首跳判断
-   - 目标：低成本完成“已知技能路由”和升级判断
-   - 输出：`selected_skill` 或 `escalate_to_reasoning=true`
+1. 外层薄编排（非模型）
+   - 位置：`Runner/Service`
+   - 目标：事件标准化、线程路由、策略前置校验
+   - 不做模型路由判断
 
-2. Reasoning Model（强模型）
-   - 位置：`Agent Planner`（复杂任务路径）
-   - 目标：多步规划、开放工具选择、异常回退
+2. 主 Agent 模型（agent_model）
+   - 位置：`Agent Planner`（ReAct 主循环）
+   - 目标：规划、技能选择、工具调用决策、异常回退
    - 输出：结构化 `PlanResult`
 
 3. 决策边界
-   - 简单任务：只用 Router Model
-   - 复杂/开放任务：升级到 Reasoning Model
-   - 失败回退：Reasoning -> RulePlanner -> 默认技能
+   - 简单任务：规则 planner 可直接给出技能
+   - 复杂/开放任务：进入主 Agent 模型推理
+   - 失败回退：agent_model -> RulePlanner -> 默认技能
 
 ### 5.2.2 多 Provider 模型管理
 
-模型层必须支持多个 Provider，并与模型角色解耦：
+模型层支持多个 Provider，但当前只维护单角色 `agent_model`：
 
 1. Provider 抽象
    - 统一接口：`chat(model_id, messages, options)`
    - 支持 OpenAI 兼容与非兼容 provider adapter
 
 2. 角色绑定
-   - `router_model`: 可配置 provider + model
-   - `reasoning_model`: 可配置 provider + model
+   - `agent_model`: 可配置 provider + model
 
 3. 运行策略
    - 首选 provider 失败时按优先级 failover
-   - 按任务类型选择 provider（成本优先/能力优先）
    - 保留调用审计（provider、model、token、latency、error）
 
 ### 5.3 Skills 生命周期
