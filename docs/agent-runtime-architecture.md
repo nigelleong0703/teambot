@@ -1,13 +1,12 @@
-# Agent Runtime Architecture (Router / Planner / Agent Core)
+# Agent Runtime Architecture (Rule Gate / ReAct / Agent Core)
 
 ## 1. Runtime Flow
 
 ```mermaid
 flowchart LR
-  U["User Input"] --> R["Rule Routing (non-model)"]
-  R -->|"direct action"| X["Executor (skill/tool)"]
-  R -->|"needs reasoning"| P["Reasoning Planner (agent_model)"]
-  P --> X
+  U["User Input"] --> R["Deterministic Reason Router"]
+  R --> X["Executor (skill/tool)"]
+  X -->|"general_reply may call agent_model"| M["Provider Manager + LangChain Adapter"]
   X --> O["Observe"]
   O --> C["Compose Reply"]
   C --> U2["Bot Reply"]
@@ -30,8 +29,8 @@ flowchart LR
 - Router + loop control:
   - `src/teambot/agents/core/router.py`
   - `src/teambot/agents/core/graph.py`
-- Planner (rule + model planner):
-  - `src/teambot/agents/planner.py`
+- Message-tool model prompt:
+  - `src/teambot/agents/tools/builtin.py`
 - Model provider manager:
   - `src/teambot/agents/providers/*`
 - Skill/tool execution:

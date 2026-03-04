@@ -7,8 +7,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .adapters.providers import ROLE_AGENT
 from .agents.core.state import build_initial_state
-from .agents.planner import ReasoningModelPlanner
 from .interfaces.bootstrap import build_agent_service
 from .models import InboundEvent, ReplyTarget
 from .store import make_conversation_key
@@ -20,10 +20,12 @@ EventCallback = Callable[[str, dict[str, Any]], None]
 class TraceCollector:
     model_calls: list[dict[str, Any]] = field(default_factory=list)
     action_calls: list[dict[str, Any]] = field(default_factory=list)
+    reason_calls: list[dict[str, Any]] = field(default_factory=list)
 
     def reset(self) -> None:
         self.model_calls.clear()
         self.action_calls.clear()
+        self.reason_calls.clear()
 
 
 class ReactLoopDebugRunner:
@@ -39,8 +41,8 @@ class ReactLoopDebugRunner:
         self._on_event(kind, payload)
 
     def _install_hooks(self) -> None:
-        if isinstance(self.service.planner, ReasoningModelPlanner):
-            manager = self.service.planner.provider_manager
+        manager = self.service.provider_manager
+        if manager is not None and manager.has_role(ROLE_AGENT):
             original_invoke = manager.invoke_role_json
 
             def traced_invoke(
@@ -138,6 +140,49 @@ class ReactLoopDebugRunner:
                     raise
 
             manager.invoke_role_json = traced_invoke  # type: ignore[method-assign]
+
+        graph = self.service.graph
+        original_reason = graph.reason_node
+
+        def traced_reason(state: dict[str, Any]) -> dict[str, Any]:
+            step = int(state.get("react_step", 0))
+            self._emit(
+                "reason_start",
+                {
+                    "step": step,
+                    "event_type": state.get("event_type"),
+                    "selected_skill": state.get("selected_skill", ""),
+                },
+            )
+            output = original_reason(state)
+            done = bool(output.get("react_done", False))
+            route = "compose_reply" if done else "act"
+            call = {
+                "step": step,
+                "input": {
+                    "event_type": state.get("event_type"),
+                    "user_text": state.get("user_text"),
+                    "selected_skill": state.get("selected_skill", ""),
+                    "last_observation": state.get("skill_output", {}),
+                },
+                "output": output,
+                "done": done,
+                "route": route,
+            }
+            self.trace.reason_calls.append(call)
+            self._emit(
+                "reason_end",
+                {
+                    "step": step,
+                    "done": done,
+                    "route": route,
+                    "selected_skill": output.get("selected_skill", ""),
+                    "reasoning_note": output.get("reasoning_note", ""),
+                },
+            )
+            return output
+
+        graph.reason_node = traced_reason  # type: ignore[method-assign]
 
         plugin_host = self.service.plugin_host
         original_action_invoke = plugin_host.invoke
@@ -238,12 +283,14 @@ class ReactLoopDebugRunner:
         )
         return {
             "event": event.model_dump(),
-            "planner_type": type(self.service.planner).__name__
-            if self.service.planner
-            else "None",
+            "model_role_bound": bool(
+                self.service.provider_manager
+                and self.service.provider_manager.has_role(ROLE_AGENT)
+            ),
             "timing": {
                 "total_duration_ms": total_duration_ms,
             },
+            "reason_calls": list(self.trace.reason_calls),
             "model_calls": list(self.trace.model_calls),
             "action_calls": list(self.trace.action_calls),
             "react_summary": {
@@ -350,12 +397,30 @@ def _print_summary(report: dict[str, Any]) -> None:
     print(f"bot> {summary.get('reply_text', '')}")
     print(
         "[summary]"
-        f" planner={report.get('planner_type')}"
+        f" model_role_bound={report.get('model_role_bound')}"
         f" selected_skill={summary.get('selected_skill')}"
         f" steps={summary.get('react_step')}"
         f" total_ms={report.get('timing', {}).get('total_duration_ms')}"
     )
     print(f"[summary] note={summary.get('reasoning_note', '')}")
+
+    reason_calls = report.get("reason_calls", [])
+    if not reason_calls:
+        print("[summary] reason_calls=0")
+    else:
+        print(f"[summary] reason_calls={len(reason_calls)}")
+        for idx, call in enumerate(reason_calls, start=1):
+            output = call.get("output") or {}
+            selected = output.get("selected_skill", "") or "-"
+            done = bool(call.get("done", False))
+            route = call.get("route", "")
+            note = output.get("reasoning_note", "")
+            print(
+                f"  - {idx}. step={call.get('step')} done={done} "
+                f"route={route} selected_skill={selected}"
+            )
+            if note:
+                print(f"    note={note}")
 
     model_calls = report.get("model_calls", [])
     if not model_calls:
@@ -425,6 +490,25 @@ def _build_live_printer(state: dict[str, Any]) -> EventCallback:
             )
             print("[live] model tokens> ", end="", flush=True)
             token_stream_open["value"] = True
+            return
+        if kind == "reason_start":
+            print(
+                f"[live] reason start step={payload.get('step')} "
+                f"event={payload.get('event_type')}",
+                flush=True,
+            )
+            return
+        if kind == "reason_end":
+            selected = payload.get("selected_skill") or "-"
+            print(
+                f"[live] reason end step={payload.get('step')} "
+                f"route={payload.get('route')} done={payload.get('done')} "
+                f"selected_skill={selected}",
+                flush=True,
+            )
+            note = str(payload.get("reasoning_note", "")).strip()
+            if note:
+                print(f"[live] reason note> {note}", flush=True)
             return
         if kind == "model_token":
             token = str(payload.get("token", ""))

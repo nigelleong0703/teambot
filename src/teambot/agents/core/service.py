@@ -4,13 +4,12 @@ import os
 from typing import Any, Callable
 
 from ...adapters.tools import ToolRegistry, build_tool_registry
+from ...adapters.providers import ROLE_AGENT, ProviderManager, build_default_provider_manager
 from ...models import InboundEvent, OutboundReply, ReplyTarget
 from ...plugins.registry import PluginHost
 from ...store import MemoryStore
-from ..planner import ReasoningModelPlanner
 from ..skills import SkillRegistry, build_registry
 from ..skills.manager import (
-    SkillService,
     ensure_skills_initialized,
     list_available_skills,
 )
@@ -23,7 +22,7 @@ class AgentService:
     def __init__(self) -> None:
         self.store = MemoryStore()
         self.dynamic_skills_dir = os.getenv("SKILLS_DIR", "").strip() or None
-        self.planner = ReasoningModelPlanner.from_env()
+        self.provider_manager: ProviderManager | None = build_default_provider_manager()
         self.registry: SkillRegistry
         self.tool_registry: ToolRegistry
         self.plugin_host: PluginHost
@@ -35,8 +34,11 @@ class AgentService:
         self,
         listener: Callable[[str, dict[str, Any]], None] | None,
     ) -> None:
-        if isinstance(self.planner, ReasoningModelPlanner):
-            self.planner.provider_manager.set_event_listener(listener)
+        if self.provider_manager is None:
+            return
+        if not self.provider_manager.has_role(ROLE_AGENT):
+            return
+        self.provider_manager.set_event_listener(listener)
 
     def reload_runtime(self) -> None:
         ensure_skills_initialized()
@@ -46,24 +48,12 @@ class AgentService:
             dynamic_skills_dir=self.dynamic_skills_dir,
             enabled_skill_names=enabled,
         )
-        self.tool_registry = build_tool_registry()
+        self.tool_registry = build_tool_registry(provider_manager=self.provider_manager)
         self.plugin_host = PluginHost()
         self.plugin_host.bind_skill_registry(self.registry)
         self.plugin_host.bind_tool_registry(self.tool_registry)
-        if self.planner is not None:
-            docs = SkillService.list_available_skill_docs()
-            planner_docs = [
-                {
-                    "name": d.name,
-                    "description": d.description,
-                    "content": d.content[:1600],
-                }
-                for d in docs[:20]
-            ]
-            self.planner.set_skill_documents(planner_docs)
         self.graph = build_graph(
             self.registry,
-            planner=self.planner,
             tool_registry=self.tool_registry,
             plugin_registry=self.plugin_host,
             policy_gate=self.policy_gate,

@@ -24,14 +24,14 @@ Router/Planner/Agent Core focused diagrams:
 - `src/teambot/main.py`: FastAPI ingress/debug endpoints
 - `src/teambot/agents/core/service.py`: application service that runs Agent Core runtime
 - `src/teambot/agents/core/graph.py`: ReAct-style custom runtime (`reason -> act -> observe -> loop/compose_reply`)
-- `src/teambot/agents/core/router.py`: reason node + route guards
+- `src/teambot/agents/core/router.py`: deterministic reason node + route guards
 - `src/teambot/agents/core/executor.py`: act/observe/compose nodes
 - `src/teambot/agents/core/state.py`: initial `AgentState` builder
-- `src/teambot/agents/planner.py`: planner abstraction (`RulePlanner` + single-model `ReasoningModelPlanner`)
-- `src/teambot/agents/providers/`: provider manager (`config/registry/router/normalize`)
+- `src/teambot/agents/planner.py`: legacy planner module kept for compatibility/experiments
+- `src/teambot/agents/providers/`: provider manager (`config/registry/router/normalize`, single `agent_model` role)
 - `src/teambot/agents/model_adapter.py`: compatibility shim around provider manager clients
 - `src/teambot/agents/skills/`: skill registry + builtin skills
-- `src/teambot/agents/tools/`: tool registry + builtin tool adapters
+- `src/teambot/agents/tools/`: tool registry + builtin tools (default `general_reply` message tool)
 - `src/teambot/store.py`: in-memory conversation + idempotency store
 
 ## Run
@@ -66,10 +66,10 @@ curl -X POST http://127.0.0.1:8000/events/slack \
   }'
 ```
 
-## Enable model planner (optional)
+## Enable model-backed general reply (optional)
 
-By default, TeamBot uses local `RulePlanner`.
-If you set `AGENT_MODEL`, runtime planning uses the provider manager (`agent_model` only).
+By default, TeamBot can run deterministically without model calls.
+If `agent_model` role is configured, the `general_reply` tool invokes the provider manager to generate `{\"message\": ...}` JSON.
 
 ```bash
 export AGENT_PROVIDER="openai-compatible"
@@ -83,16 +83,8 @@ export AGENT_FALLBACKS_JSON='[
 ]'
 ```
 
-Planner response is constrained to structured JSON with:
-- `selected_skill`
-- `skill_input`
-- `done`
-- `final_message`
-- `note`
-
 Safety behavior:
-- model failure -> fallback to `RulePlanner`
-- invalid skill name -> fallback to `general_reply`
+- model call failure in `general_reply` -> deterministic fallback reply
 - max ReAct steps -> forced finish
 - high-risk actions -> policy gate block by default
 
@@ -168,13 +160,7 @@ PYTHONPATH=src python -m teambot.react_loop_demo --text "hello" --view summary
 Quickly test whether `agent_model` can be invoked with current env:
 
 ```bash
-PYTHONPATH=src python -m teambot.provider_smoke_test --roles agent --pretty
-```
-
-If you still want router-role probing for experiments:
-
-```bash
-PYTHONPATH=src python -m teambot.provider_smoke_test --roles router --pretty
+PYTHONPATH=src python -m teambot.provider_smoke_test --pretty
 ```
 
 ## Enable dynamic skills (optional)
@@ -213,7 +199,7 @@ This repo now supports CoPaw-style skill directories:
 
 1. if active is empty, builtin/customized skills are synced into active
 2. runtime registry is rebuilt using active skill names
-3. active `SKILL.md` documents are injected into reasoning planner context
+3. active skills become part of unified runtime action registry for deterministic routing
 
 Env vars:
 

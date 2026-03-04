@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from ...models import AgentState
 from ...agent_core.contracts import ActionPluginRegistry
-from ..planner import Planner, RulePlanner
 from ..skills.registry import SkillRegistry
 from ..tools.registry import ToolRegistry
 from .actions import ActionRegistry
@@ -21,10 +20,9 @@ class AgentCoreRuntime:
         self,
         *,
         action_registry: ActionRegistry,
-        planner: Planner,
         policy_gate: ExecutionPolicyGate,
     ) -> None:
-        self.reason_node = build_reason_node(action_registry, planner)
+        self.reason_node = build_reason_node(action_registry)
         self.act_node = build_act_node(action_registry, policy_gate)
 
     def invoke(self, state: AgentState) -> AgentState:
@@ -55,14 +53,11 @@ class AgentCoreRuntime:
 
 def build_graph(
     registry: SkillRegistry,
-    planner: Planner | None = None,
     *,
     tool_registry: ToolRegistry | None = None,
     plugin_registry: ActionPluginRegistry | None = None,
     policy_gate: ExecutionPolicyGate | None = None,
 ):
-    if planner is None:
-        planner = RulePlanner()
     if policy_gate is None:
         policy_gate = ExecutionPolicyGate.from_env()
 
@@ -73,6 +68,5 @@ def build_graph(
     )
     return AgentCoreRuntime(
         action_registry=action_registry,
-        planner=planner,
         policy_gate=policy_gate,
     )

@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 from ...models import AgentState
-from ..planner import Planner, PlannerError, RulePlanner
 from .actions import ActionRegistry
 
 
-def build_reason_node(action_registry: ActionRegistry, planner: Planner):
-    fallback = RulePlanner()
+def build_reason_node(action_registry: ActionRegistry):
     manifests = action_registry.list_manifests()
-    skill_names = {manifest.name for manifest in manifests}
-    default_skill = "general_reply" if "general_reply" in skill_names else ""
-    if not default_skill and manifests:
-        default_skill = manifests[0].name
+    action_names = {manifest.name for manifest in manifests}
+    default_action = "general_reply" if "general_reply" in action_names else ""
+    if not default_action and manifests:
+        default_action = manifests[0].name
 
     def _reason(state: AgentState) -> dict:
-        step = state.get("react_step", 0)
-        max_steps = state.get("react_max_steps", 3)
+        step = int(state.get("react_step", 0))
+        max_steps = int(state.get("react_max_steps", 3))
         if step >= max_steps:
             return {
                 "react_done": True,
@@ -25,8 +23,8 @@ def build_reason_node(action_registry: ActionRegistry, planner: Planner):
 
         follow_up_skill = state.get("skill_output", {}).get("next_skill")
         if follow_up_skill:
-            follow_up = str(follow_up_skill)
-            if follow_up in skill_names:
+            follow_up = str(follow_up_skill).strip()
+            if follow_up and action_registry.has_action(follow_up):
                 return {
                     "selected_skill": follow_up,
                     "skill_input": {},
@@ -34,68 +32,58 @@ def build_reason_node(action_registry: ActionRegistry, planner: Planner):
                         f"Continue with follow-up action from observation: {follow_up}"
                     ),
                 }
-            if not default_skill:
+            if not default_action:
                 return {
                     "react_done": True,
                     "reasoning_note": (
-                        f"next_skill not found and no fallback action: {follow_up}"
+                        f"next_skill not found and no fallback action is available: {follow_up}"
                     ),
                     "skill_output": {"message": "Processed."},
                 }
             return {
-                "selected_skill": default_skill,
+                "selected_skill": default_action,
                 "skill_input": {},
                 "reasoning_note": (
-                    f"next_skill not found, fallback to {default_skill}: {follow_up}"
+                    f"next_skill not found, fallback to {default_action}: {follow_up}"
                 ),
             }
 
-        try:
-            plan = planner.plan(state=state, available_skills=manifests)
-        except PlannerError as exc:
-            plan = fallback.plan(state=state, available_skills=manifests)
-            if not (plan.selected_skill or default_skill):
-                return {
-                    "react_done": True,
-                    "reasoning_note": (
-                        f"Model planning failed and no fallback action: {exc}"
-                    ),
-                    "skill_output": {"message": "Processed."},
-                }
+        if state.get("event_type") == "reaction_added" and action_registry.has_action(
+            "handle_reaction"
+        ):
             return {
-                "selected_skill": plan.selected_skill or default_skill,
-                "skill_input": plan.skill_input,
-                "reasoning_note": f"Model planning failed, fallback to rule planner: {exc}",
+                "selected_skill": "handle_reaction",
+                "skill_input": {},
+                "reasoning_note": "Deterministic route: reaction_added -> handle_reaction",
             }
 
-        if plan.done:
+        text = str(state.get("user_text", "")).strip().lower()
+        if text.startswith("/todo") and action_registry.has_action("create_task"):
             return {
-                "react_done": True,
-                "reasoning_note": plan.note or "Model planner: finish directly",
-                "skill_output": {"message": plan.final_message or "Processed."},
-            }
-        if plan.selected_skill not in skill_names:
-            if not default_skill:
-                return {
-                    "react_done": True,
-                    "reasoning_note": (
-                        "Model returned invalid action and no fallback action: "
-                        f"{plan.selected_skill}"
-                    ),
-                    "skill_output": {"message": "Processed."},
-                }
-            return {
-                "selected_skill": default_skill,
+                "selected_skill": "create_task",
                 "skill_input": {},
-                "reasoning_note": (
-                    f"Model returned invalid action {plan.selected_skill}, "
-                    f"fallback to {default_skill}"
-                ),
+                "reasoning_note": "Deterministic route: /todo -> create_task",
             }
+
+        if default_action:
+            return {
+                "selected_skill": default_action,
+                "skill_input": {},
+                "reasoning_note": f"Deterministic route: default -> {default_action}",
+            }
+
+        if manifests:
+            first_action = manifests[0].name
+            return {
+                "selected_skill": first_action,
+                "skill_input": {},
+                "reasoning_note": f"Deterministic route: first available -> {first_action}",
+            }
+
         return {
-            "selected_skill": plan.selected_skill,
-            "skill_input": plan.skill_input,
-            "reasoning_note": plan.note or f"Model planner: execute {plan.selected_skill}",
+            "react_done": True,
+            "reasoning_note": "No action is registered; finish safely.",
+            "skill_output": {"message": "Processed."},
         }
 
     return _reason

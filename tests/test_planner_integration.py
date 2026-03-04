@@ -1,17 +1,6 @@
 from teambot.agents.graph import build_graph
-from teambot.agents.planner import PlanResult, PlannerError
 from teambot.agents.skills.registry import SkillManifest, SkillRegistry
 from teambot.models import AgentState
-
-
-class _DonePlanner:
-    def plan(self, state: AgentState, available_skills: list[SkillManifest]) -> PlanResult:
-        return PlanResult(done=True, final_message="Model returned final answer directly")
-
-
-class _FailPlanner:
-    def plan(self, state: AgentState, available_skills: list[SkillManifest]) -> PlanResult:
-        raise PlannerError("simulated model failure")
 
 
 def _state(user_text: str) -> AgentState:
@@ -32,40 +21,45 @@ def _state(user_text: str) -> AgentState:
     }
 
 
-def test_done_plan_short_circuits_act_execution() -> None:
+def test_max_step_guard_short_circuits_act_execution() -> None:
     registry = SkillRegistry()
 
     def should_not_run(_state: AgentState) -> dict[str, str]:
-        raise AssertionError("act should be skipped when planner marks done=true")
+        raise AssertionError("act should be skipped when step guard is reached")
 
     registry.register(SkillManifest(name="general_reply", description=""), should_not_run)
     registry.register(SkillManifest(name="create_task", description=""), should_not_run)
     registry.register(SkillManifest(name="handle_reaction", description=""), should_not_run)
 
-    graph = build_graph(registry, planner=_DonePlanner())
-    result = graph.invoke(_state("hello"))
+    graph = build_graph(registry)
+    state = _state("hello")
+    state["react_step"] = 3
+    state["react_max_steps"] = 3
+    result = graph.invoke(state)
 
-    assert result["reply_text"] == "Model returned final answer directly"
+    assert result["reply_text"] == "Processed."
     assert result["react_done"] is True
-    assert result["react_step"] == 0
+    assert result["react_step"] == 3
 
 
-def test_planner_failure_falls_back_to_rule_planner() -> None:
+def test_unknown_follow_up_falls_back_to_default_action() -> None:
     registry = SkillRegistry()
 
-    def general_reply(state: AgentState) -> dict[str, str]:
-        return {"message": f"fallback:{state['user_text']}"}
+    def general_reply(_state: AgentState) -> dict[str, str]:
+        return {"message": "fallback:general_reply"}
 
     def create_task(_state: AgentState) -> dict[str, str]:
-        return {"message": "Task recorded: by fallback"}
+        return {"message": "task"}
 
     registry.register(SkillManifest(name="general_reply", description=""), general_reply)
     registry.register(SkillManifest(name="create_task", description=""), create_task)
     registry.register(SkillManifest(name="handle_reaction", description=""), general_reply)
 
-    graph = build_graph(registry, planner=_FailPlanner())
-    result = graph.invoke(_state("/todo write report"))
+    graph = build_graph(registry)
+    state = _state("hello")
+    state["skill_output"] = {"next_skill": "missing_action"}
+    result = graph.invoke(state)
 
-    assert result["selected_skill"] == "create_task"
-    assert "Task recorded" in result["reply_text"]
-    assert "fallback to rule planner" in result["reasoning_note"]
+    assert result["selected_skill"] == "general_reply"
+    assert result["reply_text"] == "fallback:general_reply"
+    assert "fallback to general_reply" in result["reasoning_note"]

@@ -7,7 +7,6 @@ from typing import Any
 
 from .adapters.providers import (
     ROLE_AGENT,
-    ROLE_ROUTER,
     ProviderInvocationError,
     build_default_provider_manager,
 )
@@ -15,12 +14,7 @@ from .adapters.providers import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Smoke test model role provider calls (default: agent_model)."
-    )
-    parser.add_argument(
-        "--roles",
-        default="agent",
-        help="Comma-separated roles to test: agent,router",
+        description="Smoke test agent_model provider call."
     )
     parser.add_argument(
         "--pretty",
@@ -30,64 +24,25 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _router_prompt() -> str:
-    return (
-        "You are a low-cost router model. Return JSON only.\n"
-        "Schema: {\n"
-        '  "use_agent_model": boolean,\n'
-        '  "selected_skill": string,\n'
-        '  "note": string\n'
-        "}\n"
-        "Rules:\n"
-        "- selected_skill must be one of available_skills names.\n"
-        "- For this test, set use_agent_model=false.\n"
-    )
-
-
-def _router_payload() -> dict[str, Any]:
-    return {
-        "event_type": "message",
-        "user_text": "hello",
-        "reaction": None,
-        "available_skills": [
-            {"name": "general_reply", "description": "Default reply"},
-            {"name": "create_task", "description": "Create task from /todo"},
-            {"name": "handle_reaction", "description": "Handle reaction events"},
-        ],
-    }
-
-
 def _agent_prompt() -> str:
     return (
-        "You are a planning module in a ReAct workflow. Return JSON only.\n"
+        "You are TeamBot's message tool. Return a single JSON object only. No markdown.\n"
         "Schema: {\n"
-        '  "selected_skill": string,\n'
-        '  "skill_input": object,\n'
-        '  "done": boolean,\n'
-        '  "final_message": string,\n'
-        '  "note": string\n'
+        '  "message": string\n'
         "}\n"
         "Rules:\n"
-        "- If done=false, selected_skill must be in available_skills.\n"
-        "- For this test, return done=false.\n"
+        "- Keep message concise and user-facing.\n"
     )
 
 
 def _agent_payload() -> dict[str, Any]:
     return {
         "event_type": "message",
-        "user_text": "please create a task for writing test docs",
+        "user_text": "hello from provider smoke test",
         "reaction": None,
         "react_step": 0,
-        "react_max_steps": 3,
-        "previous_skill": "",
+        "conversation_key": "smoke:T1:C1:1",
         "last_observation": {},
-        "available_skills": [
-            {"name": "general_reply", "description": "Default reply"},
-            {"name": "create_task", "description": "Create task from /todo"},
-            {"name": "handle_reaction", "description": "Handle reaction events"},
-        ],
-        "active_skill_docs": [],
     }
 
 
@@ -99,25 +54,25 @@ def _mask(value: str | None) -> str:
     return f"{value[:4]}...{value[-4:]}"
 
 
-def _test_role(role: str) -> dict[str, Any]:
+def _test_agent_role() -> dict[str, Any]:
     manager = build_default_provider_manager()
     if manager is None:
         return {
-            "role": role,
+            "role": ROLE_AGENT,
             "ok": False,
             "error": "ProviderManager unavailable (missing role bindings in env).",
         }
-    if not manager.has_role(role):
+    if not manager.has_role(ROLE_AGENT):
         return {
-            "role": role,
+            "role": ROLE_AGENT,
             "ok": False,
-            "error": f"Role not configured: {role}",
+            "error": f"Role not configured: {ROLE_AGENT}",
         }
 
-    binding = manager.settings.get_role_binding(role)
+    binding = manager.settings.get_role_binding(ROLE_AGENT)
     endpoint = binding.endpoints[0]
     summary: dict[str, Any] = {
-        "role": role,
+        "role": ROLE_AGENT,
         "configured": {
             "provider": endpoint.provider,
             "model": endpoint.model,
@@ -129,18 +84,11 @@ def _test_role(role: str) -> dict[str, Any]:
     }
 
     try:
-        if role == ROLE_ROUTER:
-            result = manager.invoke_role_json(
-                role=ROLE_ROUTER,
-                system_prompt=_router_prompt(),
-                payload=_router_payload(),
-            )
-        else:
-            result = manager.invoke_role_json(
-                role=ROLE_AGENT,
-                system_prompt=_agent_prompt(),
-                payload=_agent_payload(),
-            )
+        result = manager.invoke_role_json(
+            role=ROLE_AGENT,
+            system_prompt=_agent_prompt(),
+            payload=_agent_payload(),
+        )
         summary.update(
             {
                 "ok": True,
@@ -176,19 +124,7 @@ def _test_role(role: str) -> dict[str, Any]:
 
 def main() -> None:
     args = parse_args()
-    mapping = {"router": ROLE_ROUTER, "agent": ROLE_AGENT}
-    requested = [item.strip().lower() for item in args.roles.split(",") if item.strip()]
-    roles: list[str] = []
-    for item in requested:
-        role = mapping.get(item)
-        if role and role not in roles:
-            roles.append(role)
-
-    if not roles:
-        print("No valid roles requested. Use --roles agent[,router]", file=sys.stderr)
-        sys.exit(2)
-
-    results = [_test_role(role) for role in roles]
+    results = [_test_agent_role()]
     report = {
         "ok": all(item.get("ok") for item in results),
         "results": results,

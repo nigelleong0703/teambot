@@ -1,23 +1,11 @@
 from teambot.agents.core.graph import build_graph
 from teambot.agents.core.policy import ExecutionPolicyGate
-from teambot.agents.planner import PlanResult
 from teambot.agents.skills.registry import SkillManifest, SkillRegistry
 from teambot.agents.tools.registry import ToolManifest, ToolRegistry
 from teambot.models import AgentState
 
 
-class _SelectToolPlanner:
-    def __init__(self, action_name: str) -> None:
-        self._action_name = action_name
-
-    def plan(self, state: AgentState, available_skills: list[SkillManifest]) -> PlanResult:
-        return PlanResult(
-            selected_skill=self._action_name,
-            note=f"select:{self._action_name}",
-        )
-
-
-def _state() -> AgentState:
+def _state(next_skill: str) -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
         "event_type": "message",
@@ -30,7 +18,7 @@ def _state() -> AgentState:
         "reasoning_note": "",
         "selected_skill": "",
         "skill_input": {},
-        "skill_output": {},
+        "skill_output": {"next_skill": next_skill},
         "execution_trace": [],
         "reply_text": "",
     }
@@ -48,10 +36,9 @@ def test_tool_action_uses_unified_contract() -> None:
 
     graph = build_graph(
         skills,
-        planner=_SelectToolPlanner("tool_echo"),
         tool_registry=tools,
     )
-    result = graph.invoke(_state())
+    result = graph.invoke(_state("tool_echo"))
 
     assert result["selected_skill"] == "tool_echo"
     assert result["reply_text"] == "echo:run tool"
@@ -71,11 +58,10 @@ def test_high_risk_action_is_blocked_by_policy_gate() -> None:
 
     graph = build_graph(
         skills,
-        planner=_SelectToolPlanner("exec_command"),
         tool_registry=tools,
         policy_gate=ExecutionPolicyGate(allow_high_risk=False),
     )
-    result = graph.invoke(_state())
+    result = graph.invoke(_state("exec_command"))
 
     assert result["selected_skill"] == "exec_command"
     assert "High-risk action blocked by policy" in result["reply_text"]
