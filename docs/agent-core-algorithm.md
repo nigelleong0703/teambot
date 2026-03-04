@@ -90,6 +90,7 @@ flowchart TD
 
 - Files:
   - `src/teambot/agents/core/executor.py`
+  - `src/teambot/agents/prompts/general_reply.py`
   - `src/teambot/agents/tools/builtin.py`
 - Behavior:
   - `ExecutionPolicyGate` evaluates action risk first.
@@ -191,6 +192,7 @@ Update this document whenever any of the following changes:
 - `src/teambot/agents/core/graph.py`
 - `src/teambot/agents/core/executor.py`
 - `src/teambot/agents/tools/builtin.py`
+- `src/teambot/agents/prompts/general_reply.py`
 - `src/teambot/agents/providers/router.py`
 - `src/teambot/agents/providers/clients.py`
 - `src/teambot/agents/core/state.py`

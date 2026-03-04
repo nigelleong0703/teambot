@@ -14,6 +14,24 @@ from .executor import (
 from .policy import ExecutionPolicyGate
 from .router import build_reason_node, route_after_reason
 
+_RUNTIME_GUARD_PADDING = 2
+_RUNTIME_GUARD_MIN = 3
+_FALLBACK_MESSAGE = "Processed."
+
+
+def _loop_guard(state: AgentState) -> int:
+    max_steps = int(state.get("react_max_steps", 3))
+    return max(max_steps + _RUNTIME_GUARD_PADDING, _RUNTIME_GUARD_MIN)
+
+
+def _finalize_guard_exit(state: AgentState) -> AgentState:
+    state["react_done"] = True
+    state["reasoning_note"] = "Runtime guard triggered: loop limit exceeded, force finish."
+    if not state.get("skill_output"):
+        state["skill_output"] = {"message": _FALLBACK_MESSAGE}
+    state.update(compose_reply_node(state))
+    return state
+
 
 class AgentCoreRuntime:
     def __init__(
@@ -27,7 +45,7 @@ class AgentCoreRuntime:
 
     def invoke(self, state: AgentState) -> AgentState:
         current: AgentState = dict(state)
-        loop_guard = max(int(current.get("react_max_steps", 3)) + 2, 3)
+        loop_guard = _loop_guard(current)
 
         for _ in range(loop_guard):
             current.update(self.reason_node(current))
@@ -43,24 +61,16 @@ class AgentCoreRuntime:
                 current.update(compose_reply_node(current))
                 return current
 
-        current["react_done"] = True
-        current["reasoning_note"] = "Runtime guard triggered: loop limit exceeded, force finish."
-        if not current.get("skill_output"):
-            current["skill_output"] = {"message": "Processed."}
-        current.update(compose_reply_node(current))
-        return current
+        return _finalize_guard_exit(current)
 
 
 def build_graph(
     registry: SkillRegistry,
-    planner=None,
     *,
     tool_registry: ToolRegistry | None = None,
     plugin_registry: ActionPluginRegistry | None = None,
     policy_gate: ExecutionPolicyGate | None = None,
 ):
-    # Backward compatibility: keep accepting planner argument from old callers.
-    _ = planner
     if policy_gate is None:
         policy_gate = ExecutionPolicyGate.from_env()
 

@@ -3,16 +3,13 @@ from __future__ import annotations
 import os
 from typing import Any, Callable
 
-from ...adapters.tools import ToolRegistry, build_tool_registry
 from ...adapters.providers import ROLE_AGENT, ProviderManager, build_default_provider_manager
+from ...adapters.tools import ToolRegistry, build_tool_registry
 from ...models import InboundEvent, OutboundReply, ReplyTarget
 from ...plugins.registry import PluginHost
 from ...store import MemoryStore
 from ..skills import SkillRegistry, build_registry
-from ..skills.manager import (
-    ensure_skills_initialized,
-    list_available_skills,
-)
+from ..skills.manager import ensure_skills_initialized, list_available_skills
 from .graph import build_graph
 from .policy import ExecutionPolicyGate
 from .state import build_initial_state
@@ -22,8 +19,6 @@ class AgentService:
     def __init__(self) -> None:
         self.store = MemoryStore()
         self.dynamic_skills_dir = os.getenv("SKILLS_DIR", "").strip() or None
-        # Backward compatibility for integrations still reading service.planner.
-        self.planner = None
         self.provider_manager: ProviderManager | None = build_default_provider_manager()
         self.registry: SkillRegistry
         self.tool_registry: ToolRegistry
@@ -36,24 +31,29 @@ class AgentService:
         self,
         listener: Callable[[str, dict[str, Any]], None] | None,
     ) -> None:
-        if self.provider_manager is None:
+        manager = self.provider_manager
+        if manager is None:
             return
-        if not self.provider_manager.has_role(ROLE_AGENT):
+        if not manager.has_role(ROLE_AGENT):
             return
-        self.provider_manager.set_event_listener(listener)
+        manager.set_event_listener(listener)
 
-    def reload_runtime(self) -> None:
+    def _build_runtime_components(self) -> tuple[SkillRegistry, ToolRegistry, PluginHost]:
         ensure_skills_initialized()
         active_names = set(list_available_skills())
-        enabled = active_names if active_names else None
-        self.registry = build_registry(
+        enabled_names = active_names if active_names else None
+        skill_registry = build_registry(
             dynamic_skills_dir=self.dynamic_skills_dir,
-            enabled_skill_names=enabled,
+            enabled_skill_names=enabled_names,
         )
-        self.tool_registry = build_tool_registry(provider_manager=self.provider_manager)
-        self.plugin_host = PluginHost()
-        self.plugin_host.bind_skill_registry(self.registry)
-        self.plugin_host.bind_tool_registry(self.tool_registry)
+        tool_registry = build_tool_registry(provider_manager=self.provider_manager)
+        plugin_host = PluginHost()
+        plugin_host.bind_skill_registry(skill_registry)
+        plugin_host.bind_tool_registry(tool_registry)
+        return skill_registry, tool_registry, plugin_host
+
+    def reload_runtime(self) -> None:
+        self.registry, self.tool_registry, self.plugin_host = self._build_runtime_components()
         self.graph = build_graph(
             self.registry,
             tool_registry=self.tool_registry,

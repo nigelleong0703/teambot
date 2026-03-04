@@ -66,8 +66,11 @@
 
 当前核心流程里，model prompt 在 message tool，而不是 reason/planner：
 
+- `src/teambot/agents/prompts/general_reply.py`
+  - `general_reply_system_prompt`
+  - `build_general_reply_payload`
 - `src/teambot/agents/tools/builtin.py`
-  - `_GeneralReplyTool.__call__` 的 `system_prompt`
+  - `_GeneralReplyTool.__call__` 里调用 provider manager
   - 返回 JSON：`{"message": "..."}`
 
 `reason/observe/compose` 是确定性代码阶段，没有 LLM prompt。

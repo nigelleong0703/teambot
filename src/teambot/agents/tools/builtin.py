@@ -5,6 +5,7 @@ import os
 from ...adapters.providers import ROLE_AGENT
 from ...agent_core.contracts import ModelRoleInvoker
 from ...models import AgentState
+from ..prompts import build_general_reply_payload, general_reply_system_prompt
 from .registry import ToolManifest, ToolRegistry
 
 
@@ -27,30 +28,11 @@ class _GeneralReplyTool:
         if manager is None or not manager.has_role(ROLE_AGENT):
             return _deterministic_general_reply(state)
 
-        system_prompt = (
-            "You are TeamBot's message tool. "
-            "Return a single JSON object only. No markdown.\n"
-            "Schema: {\n"
-            '  "message": string\n'
-            "}\n"
-            "Rules:\n"
-            "- Keep message concise, practical, and user-facing.\n"
-            "- Do not include JSON outside the object.\n"
-            "- Do not include tool/planner internals."
-        )
-        payload = {
-            "event_type": state.get("event_type"),
-            "user_text": state.get("user_text"),
-            "reaction": state.get("reaction"),
-            "conversation_key": state.get("conversation_key"),
-            "react_step": state.get("react_step"),
-            "last_observation": state.get("skill_output", {}),
-        }
         try:
             result = manager.invoke_role_json(
                 role=ROLE_AGENT,
-                system_prompt=system_prompt,
-                payload=payload,
+                system_prompt=general_reply_system_prompt(),
+                payload=build_general_reply_payload(state),
             )
         except Exception:
             return _deterministic_general_reply(state)
