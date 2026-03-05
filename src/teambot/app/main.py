@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import FastAPI
 
-from .agents.skills.manager import SkillService, list_available_skills
-from .interfaces.bootstrap import build_agent_service
-from .models import InboundEvent
+from ..agents.skills.manager import SkillService, list_available_skills
+from ..interfaces.bootstrap import build_agent_service
+from ..domain.models import InboundEvent
 
 app = FastAPI(title="TeamBot Agent Core MVP")
 service = build_agent_service()
@@ -84,8 +84,9 @@ async def disable_skill(skill_name: str) -> dict:
 def run() -> None:
     import uvicorn
 
-    uvicorn.run("teambot.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("teambot.app.main:app", host="0.0.0.0", port=8000, reload=True)
 
 
 if __name__ == "__main__":
     run()
+

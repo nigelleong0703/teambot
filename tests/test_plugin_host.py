@@ -1,6 +1,6 @@
-from teambot.agents.skills.registry import SkillManifest, SkillRegistry
+﻿from teambot.agents.skills.registry import SkillManifest, SkillRegistry
 from teambot.agents.tools.registry import ToolManifest, ToolRegistry
-from teambot.models import AgentState
+from teambot.domain.models import AgentState
 from teambot.plugins.registry import PluginHost
 
 
@@ -62,3 +62,4 @@ def test_plugin_host_activation_toggle() -> None:
     assert host.has_action("message_reply") is False
     assert host.activate("message_reply") is True
     assert host.has_action("message_reply") is True
+

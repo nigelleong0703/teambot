@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from ...models import AgentState
+from ...domain.models import AgentState
 from .actions import ActionRegistry
 
 _FALLBACK_MESSAGE = "Processed."
@@ -96,3 +96,4 @@ def build_reason_node(action_registry: ActionRegistry):
         return _route_default(action_registry, default_action)
 
     return _reason
+

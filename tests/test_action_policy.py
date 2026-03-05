@@ -1,8 +1,8 @@
-from teambot.agents.core.graph import build_graph
+﻿from teambot.agents.core.graph import build_graph
 from teambot.agents.core.policy import ExecutionPolicyGate
 from teambot.agents.skills.registry import SkillManifest, SkillRegistry
 from teambot.agents.tools.registry import ToolManifest, ToolRegistry
-from teambot.models import AgentState
+from teambot.domain.models import AgentState
 
 
 def _state(next_skill: str) -> AgentState:
@@ -66,3 +66,4 @@ def test_high_risk_action_is_blocked_by_policy_gate() -> None:
     assert result["selected_skill"] == "exec_command"
     assert "High-risk action blocked by policy" in result["reply_text"]
     assert result["execution_trace"][0]["blocked"] is True
+

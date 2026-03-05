@@ -45,5 +45,5 @@ It is not a prompt-only chatbot wrapper. It is an execution runtime that combine
 - Skills: `src/teambot/agents/skills/*`
 - MCP: `src/teambot/agents/mcp/*`
 - Providers: `src/teambot/agents/providers/*`
-- API entry: `src/teambot/main.py`
-- CLI entry: `src/teambot/cli.py`
+- API entry: `src/teambot/app/main.py`
+- CLI entry: `src/teambot/app/cli.py`

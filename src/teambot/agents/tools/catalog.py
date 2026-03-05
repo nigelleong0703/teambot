@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from typing import Any
 
 from ..providers.manager import ROLE_AGENT
 from ...agent_core.contracts import ModelRoleInvoker
-from ...models import AgentState
+from ...domain.models import AgentState
 from ..prompts import build_system_prompt_from_working_dir
 from .external_operation_tools import (
     browser_use,
@@ -167,3 +167,4 @@ def builtin_tool_definitions(
             execute_shell_command,
         ),
     }
+

@@ -14,7 +14,7 @@ source .venv/bin/activate
 
 python -m pip install -r requirements-dev.txt
 cp .env.template .env
-PYTHONPATH=src python -m uvicorn teambot.main:app --reload
+PYTHONPATH=src python -m uvicorn teambot.app.main:app --reload
 ```
 
 ## Docs

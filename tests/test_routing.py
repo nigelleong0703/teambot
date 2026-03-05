@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 
-from teambot.models import InboundEvent
+from teambot.domain.models import InboundEvent
 from teambot.agents.core.service import AgentService
 
 
@@ -26,3 +26,4 @@ async def test_reply_target_is_hard_routed_and_stable() -> None:
     # same event_id returns idempotent result
     reply2 = await service.process_event(event)
     assert reply2.model_dump() == reply1.model_dump()
+

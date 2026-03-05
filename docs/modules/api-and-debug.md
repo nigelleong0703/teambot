@@ -13,11 +13,11 @@
 ## Local Debug Utilities
 
 - Interactive CLI:
-  - `PYTHONPATH=src python -m teambot.cli`
+  - `PYTHONPATH=src python -m teambot.app.cli`
 - ReAct debug runner:
-  - `PYTHONPATH=src python -m teambot.react_loop_demo`
+  - `PYTHONPATH=src python -m teambot.app.react_loop_demo`
 - Provider smoke test:
-  - `PYTHONPATH=src python -m teambot.provider_smoke_test --pretty`
+  - `PYTHONPATH=src python -m teambot.app.provider_smoke_test --pretty`
 
 ## Notes
 

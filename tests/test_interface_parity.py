@@ -1,22 +1,22 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
 
 from teambot.interfaces.bootstrap import build_agent_service
-from teambot.models import InboundEvent
+from teambot.domain.models import InboundEvent
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_api_and_cli_use_bootstrap_composition_root() -> None:
-    main_py = (ROOT / "src" / "teambot" / "main.py").read_text(encoding="utf-8")
-    cli_py = (ROOT / "src" / "teambot" / "cli.py").read_text(encoding="utf-8")
+    main_py = (ROOT / "src" / "teambot" / "app" / "main.py").read_text(encoding="utf-8")
+    cli_py = (ROOT / "src" / "teambot" / "app" / "cli.py").read_text(encoding="utf-8")
 
-    assert "from .interfaces.bootstrap import build_agent_service" in main_py
-    assert "from .interfaces.bootstrap import build_agent_service" in cli_py
+    assert "from ..interfaces.bootstrap import build_agent_service" in main_py
+    assert "from ..interfaces.bootstrap import build_agent_service" in cli_py
     assert "service = build_agent_service()" in main_py
     assert "service=build_agent_service()," in cli_py
 
@@ -50,3 +50,4 @@ async def test_bootstrapped_service_handles_message_and_reaction() -> None:
     reaction_reply = await service.process_event(reaction_event)
     assert reaction_reply.skill_name == "message_reply"
     assert reaction_reply.text
+

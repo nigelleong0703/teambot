@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
 from ..agent_core.contracts import ActionManifest, ActionPluginRegistry
 from ..agents.skills.registry import SkillRegistry
 from ..agents.tools.registry import ToolRegistry
-from ..models import AgentState
+from ..domain.models import AgentState
 
 
 class PluginHost(ActionPluginRegistry):
@@ -87,3 +87,4 @@ class PluginHost(ActionPluginRegistry):
         output.setdefault("_action_source", action.source)
         output.setdefault("_action_name", action.name)
         return output
+

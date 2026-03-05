@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from ...models import AgentState, InboundEvent
+from ...domain.models import AgentState, InboundEvent
 
 
 def build_initial_state(
@@ -25,3 +25,4 @@ def build_initial_state(
         "execution_trace": [],
         "reply_text": "",
     }
+

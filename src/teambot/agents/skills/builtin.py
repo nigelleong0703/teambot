@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from ...models import AgentState
+from ...domain.models import AgentState
 
 from .dynamic import load_dynamic_skills
 from .registry import SkillManifest, SkillRegistry
@@ -53,3 +53,4 @@ def build_registry(
     if dynamic_skills_dir:
         load_dynamic_skills(registry, dynamic_skills_dir)
     return registry
+

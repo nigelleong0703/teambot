@@ -1,6 +1,6 @@
-from teambot.agents.core.graph import build_graph
+﻿from teambot.agents.core.graph import build_graph
 from teambot.agents.skills.registry import SkillManifest, SkillRegistry
-from teambot.models import AgentState
+from teambot.domain.models import AgentState
 
 
 def test_react_graph_can_chain_follow_up_skill() -> None:
@@ -45,3 +45,4 @@ def test_react_graph_can_chain_follow_up_skill() -> None:
     assert result["react_step"] == 2
     assert len(result["react_notes"]) == 2
     assert len(result["execution_trace"]) == 2
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import datetime as dt
 import os
@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
-from ...models import AgentState
+from ...domain.models import AgentState
 
 _DEFAULT_EXEC_TIMEOUT_SECONDS = 20
 _DEFAULT_BROWSER_TIMEOUT_SECONDS = 10
@@ -323,3 +323,4 @@ def env_enabled(name: str, default: bool = False) -> bool:
     if name not in os.environ:
         return default
     return _coerce_bool(os.getenv(name))
+

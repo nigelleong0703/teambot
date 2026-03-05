@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from ...models import AgentState
+from ...domain.models import AgentState
 from .actions import ActionRegistry
 from .policy import ExecutionPolicyGate
 
@@ -65,3 +65,4 @@ def compose_reply_node(state: AgentState) -> dict:
     if not message:
         message = _DEFAULT_REPLY
     return {"reply_text": message}
+
