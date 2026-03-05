@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
 from ...agent_core.contracts import ActionPluginRegistry
-from ...models import AgentState
+from ...domain.models import AgentState
 from ..skills.registry import SkillManifest, SkillRegistry
 from ..tools.registry import ToolRegistry
 from ...plugins.registry import PluginHost
@@ -64,3 +64,4 @@ class ActionRegistry:
         if not isinstance(output, dict):
             return {"message": str(output)}
         return output
+

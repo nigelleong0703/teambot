@@ -1,13 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 from typing import Any, Callable
 
 from ..providers.manager import ProviderManager
 from ..tools.registry import ToolRegistry
-from ...models import InboundEvent, OutboundReply, ReplyTarget
+from ...domain.models import InboundEvent, OutboundReply, ReplyTarget
 from ...plugins.registry import PluginHost
-from ...store import MemoryStore
+from ...domain.store import MemoryStore
 from ..react_agent import TeamBotReactAgent
 from ..mcp.manager import MCPClientManager
 from ..skills import SkillRegistry
@@ -84,3 +84,4 @@ class AgentService:
         )
         await self.store.save_processed_event(event.event_id, reply)
         return reply
+

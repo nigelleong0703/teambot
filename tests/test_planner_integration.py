@@ -1,6 +1,6 @@
-from teambot.agents.core.graph import build_graph
+﻿from teambot.agents.core.graph import build_graph
 from teambot.agents.skills.registry import SkillManifest, SkillRegistry
-from teambot.models import AgentState
+from teambot.domain.models import AgentState
 
 
 def _state(user_text: str) -> AgentState:
@@ -63,3 +63,4 @@ def test_unknown_follow_up_falls_back_to_default_action() -> None:
     assert result["selected_skill"] == "message_reply"
     assert result["reply_text"] == "fallback:message_reply"
     assert "fallback to message_reply" in result["reasoning_note"]
+

@@ -1,4 +1,4 @@
-# Repo Wiki (AI Quick Onboarding)
+﻿# Repo Wiki (AI Quick Onboarding)
 
 代码结构规范以 `docs/code-structure.md` 为唯一准则。
 
@@ -35,10 +35,10 @@
 
 ## 4. 目录地图（按职责）
 
-- `src/teambot/main.py`
+- `src/teambot/app/main.py`
   FastAPI 入口（`/events/slack`, `/skills`, `/health`）
 
-- `src/teambot/cli.py`
+- `src/teambot/app/cli.py`
   交互式 CLI 调试入口
 
 - `src/teambot/interfaces/bootstrap.py`
@@ -68,7 +68,7 @@
 - `src/teambot/plugins/registry.py`
   skill + tool 的统一 action surface
 
-- `src/teambot/store.py`
+- `src/teambot/domain/store/memory_store.py`
   内存态会话存储与幂等缓存
 
 - `tests/*`
@@ -122,10 +122,10 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 
 ## 8. 常用调试入口
 
-- API 启动：`PYTHONPATH=src uvicorn teambot.main:app --reload`
-- CLI：`PYTHONPATH=src python -m teambot.cli`
-- ReAct 全链路调试：`PYTHONPATH=src python -m teambot.react_loop_demo`
-- Provider 冒烟：`PYTHONPATH=src python -m teambot.provider_smoke_test --pretty`
+- API 启动：`PYTHONPATH=src uvicorn teambot.app.main:app --reload`
+- CLI：`PYTHONPATH=src python -m teambot.app.cli`
+- ReAct 全链路调试：`PYTHONPATH=src python -m teambot.app.react_loop_demo`
+- Provider 冒烟：`PYTHONPATH=src python -m teambot.app.provider_smoke_test --pretty`
 
 ## 9. 文档优先级（必须遵守）
 
@@ -143,3 +143,4 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - 改了核心算法（reason/act/observe/compose、tool prompt、provider streaming 等），必须同步更新 `docs/agent-core-algorithm.md`
 - 改了模块依赖方向，必须同步更新 `docs/architecture-boundaries.md`
 - 新人或 AI 上手，优先读本文件 + 第 9 节文档
+

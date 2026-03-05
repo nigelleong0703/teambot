@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -6,7 +6,7 @@ from teambot.agents.core.graph import build_graph
 from teambot.agents.core.policy import ExecutionPolicyGate
 from teambot.agents.skills.registry import SkillManifest, SkillRegistry
 from teambot.agents.tools import build_tool_registry
-from teambot.models import AgentState
+from teambot.domain.models import AgentState
 
 
 def _state(next_skill: str, *, skill_input: dict[str, object] | None = None) -> AgentState:
@@ -140,3 +140,4 @@ def test_runtime_falls_back_when_follow_up_action_is_unavailable() -> None:
 
     assert result["selected_skill"] == "message_reply"
     assert result["reply_text"] == "fallback"
+

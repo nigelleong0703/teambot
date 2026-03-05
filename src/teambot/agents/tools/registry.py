@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from ...models import AgentState
+from ...domain.models import AgentState
 
 ToolHandler = Callable[[AgentState], dict[str, Any]]
 
@@ -45,3 +45,4 @@ class ToolRegistry:
 
     def list_manifests(self) -> list[ToolManifest]:
         return [tool.manifest for tool in self._tools.values()]
+

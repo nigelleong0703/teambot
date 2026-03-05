@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from ...models import AgentState
+from ...domain.models import AgentState
 from ...agent_core.contracts import ActionPluginRegistry
 from ..skills.registry import SkillRegistry
 from ..tools.registry import ToolRegistry
@@ -79,3 +79,4 @@ def build_graph(
         action_registry=action_registry,
         policy_gate=policy_gate,
     )
+

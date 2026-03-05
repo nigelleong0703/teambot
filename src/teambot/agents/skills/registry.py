@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from ...models import AgentState
+from ...domain.models import AgentState
 
 SkillHandler = Callable[[AgentState], dict[str, Any]]
 
@@ -41,3 +41,4 @@ class SkillRegistry:
 
     def list_manifests(self) -> list[SkillManifest]:
         return [skill.manifest for skill in self._skills.values()]
+

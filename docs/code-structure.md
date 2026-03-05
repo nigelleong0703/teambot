@@ -14,8 +14,8 @@ src/teambot/
   contracts/           # cross-module protocols/contracts
 ```
 
-Current transition note:
-- Existing code may still contain temporary legacy paths.
+Status:
+- `app/` and `domain/` landing is complete for current runtime code.
 - New code MUST follow the layout above.
 
 ## 2. Dependency Direction

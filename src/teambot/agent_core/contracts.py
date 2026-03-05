@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from ..models import AgentState
+from ..domain.models import AgentState
 
 
 @dataclass(frozen=True)
@@ -66,3 +66,4 @@ class ModelRoleInvoker(Protocol):
         user_message: str,
     ) -> ModelTextInvocationResult:
         ...
+

@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 
-from teambot.models import InboundEvent
+from teambot.domain.models import InboundEvent
 from teambot.agents.core.service import AgentService
 
 
@@ -40,3 +40,4 @@ async def test_reaction_event_uses_default_message_action() -> None:
 
     assert reply.skill_name == "message_reply"
     assert reply.text
+

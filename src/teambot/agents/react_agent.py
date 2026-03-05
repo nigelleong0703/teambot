@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 from typing import Any, Callable
@@ -9,7 +9,7 @@ from .providers.manager import (
     build_default_provider_manager,
 )
 from .tools.registry import ToolRegistry
-from ..models import AgentState
+from ..domain.models import AgentState
 from ..plugins.registry import PluginHost
 from .core.graph import AgentCoreRuntime, build_graph
 from .core.policy import ExecutionPolicyGate
@@ -86,3 +86,4 @@ class TeamBotReactAgent:
         if manager is None or not manager.has_role(ROLE_AGENT):
             return
         manager.set_event_listener(listener)
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import asyncio
@@ -7,9 +7,9 @@ import time
 import uuid
 from typing import Any
 
-from .agents.core.service import AgentService
-from .interfaces.bootstrap import build_agent_service
-from .models import InboundEvent
+from ..agents.core.service import AgentService
+from ..interfaces.bootstrap import build_agent_service
+from ..domain.models import InboundEvent
 
 
 class TeamBotCli:
@@ -217,3 +217,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 
-from .models import ConversationRecord, ConversationTurn, OutboundReply, ReplyTarget
+from ..models import ConversationRecord, ConversationTurn, OutboundReply, ReplyTarget
 
 
 def make_conversation_key(target: ReplyTarget) -> str:

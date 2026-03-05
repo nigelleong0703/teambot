@@ -36,7 +36,7 @@ Important groups:
 ## 3) Run API
 
 ```bash
-PYTHONPATH=src python -m uvicorn teambot.main:app --reload
+PYTHONPATH=src python -m uvicorn teambot.app.main:app --reload
 ```
 
 Health check:
@@ -48,7 +48,7 @@ curl http://127.0.0.1:8000/health
 ## 4) Run CLI
 
 ```bash
-PYTHONPATH=src python -m teambot.cli
+PYTHONPATH=src python -m teambot.app.cli
 ```
 
 ## 5) Run Tests
