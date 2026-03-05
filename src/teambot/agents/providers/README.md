@@ -14,9 +14,10 @@ Aliases normalized by code:
 
 ## Responsibilities by File
 
-- `contracts.py`: dataclasses/protocols/errors
-- `settings.py`: provider names, aliases, env parsing, default config behavior
-- `langchain_client.py`: LangChain client implementation and stream parsing
+- `base.py`: dataclasses/protocols/errors (provider domain contracts)
+- `registry.py`: provider catalog and normalization helpers
+- `config.py`: env parsing and role binding assembly
+- `clients/langchain.py`: LangChain client implementation and stream parsing
 - `manager.py`: role routing, failover, event emission, client registry, JSON extraction
 
 ## Environment Inputs

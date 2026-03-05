@@ -1,4 +1,4 @@
-from .contracts import (
+from .base import (
     NormalizedResponse,
     ProviderAttempt,
     ProviderConfigError,
@@ -7,18 +7,18 @@ from .contracts import (
     ProviderRoleBinding,
     ProviderSettings,
 )
-from .settings import (
+from .config import load_provider_settings_from_env
+from .registry import (
     ROLE_AGENT,
     SUPPORTED_PROVIDERS,
     default_base_url_for_provider,
     is_anthropic_provider,
     is_openai_compatible_provider,
     is_supported_provider,
-    load_provider_settings_from_env,
     normalize_provider_name,
     provider_api_key_envs,
 )
-from .langchain_client import LangChainProviderClient, normalize_chat_response
+from .clients.langchain import LangChainProviderClient, normalize_chat_response
 from .manager import (
     ProviderClientRegistry,
     ProviderInvocationResult,

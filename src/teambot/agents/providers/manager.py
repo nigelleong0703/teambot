@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from .contracts import (
+from .base import (
     ProviderAttempt,
     ProviderClient,
     ProviderEndpoint,
@@ -14,8 +14,9 @@ from .contracts import (
     ProviderRoleBinding,
     ProviderSettings,
 )
-from .langchain_client import LangChainProviderClient
-from .settings import ROLE_AGENT, load_provider_settings_from_env
+from .clients.langchain import LangChainProviderClient
+from .config import load_provider_settings_from_env
+from .registry import ROLE_AGENT
 
 
 def extract_json_object(text: str) -> dict[str, Any]:

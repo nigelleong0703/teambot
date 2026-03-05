@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from teambot.agents.providers.settings import (
+from teambot.agents.providers.config import load_provider_settings_from_env
+from teambot.agents.providers.registry import (
     default_base_url_for_provider,
     is_supported_provider,
-    load_provider_settings_from_env,
     normalize_provider_name,
 )
-from teambot.agents.providers.contracts import ProviderConfigError
+from teambot.agents.providers.base import ProviderConfigError
 
 
 def test_provider_name_normalization() -> None:
