@@ -31,6 +31,9 @@ class TeamBotReactAgent:
         provider_manager: ProviderManager | None = None,
         dynamic_skills_dir: str | None = None,
         policy_gate: ExecutionPolicyGate | None = None,
+        tools_config_path: str | None = None,
+        tools_profile: str | None = None,
+        strict_tools_config: bool = False,
     ) -> None:
         self.dynamic_skills_dir = (
             dynamic_skills_dir
@@ -58,6 +61,9 @@ class TeamBotReactAgent:
         self._orchestrator = RuntimeOrchestrator(
             provider_manager=self.provider_manager,
             dynamic_skills_dir=self.dynamic_skills_dir,
+            tools_config_path=tools_config_path,
+            tools_profile=tools_profile,
+            strict_tools_config=strict_tools_config,
         )
         self.reload_runtime()
 

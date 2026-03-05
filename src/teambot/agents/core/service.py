@@ -15,7 +15,13 @@ from .state import build_initial_state
 
 
 class AgentService:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        tools_config_path: str | None = None,
+        tools_profile: str | None = None,
+        strict_tools_config: bool = False,
+    ) -> None:
         self.store = MemoryStore()
         self.dynamic_skills_dir = os.getenv("SKILLS_DIR", "").strip() or None
         self.provider_manager: ProviderManager | None
@@ -28,6 +34,9 @@ class AgentService:
         self.graph = None
         self._agent = TeamBotReactAgent(
             dynamic_skills_dir=self.dynamic_skills_dir,
+            tools_config_path=tools_config_path,
+            tools_profile=tools_profile,
+            strict_tools_config=strict_tools_config,
         )
         self.reload_runtime()
 

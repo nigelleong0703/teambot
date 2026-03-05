@@ -198,11 +198,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--user-id", default="U1")
     parser.add_argument("--stream-model-tokens", action="store_true")
     parser.add_argument("--show-model-payload", action="store_true")
+    parser.add_argument(
+        "--tools-profile",
+        choices=["minimal", "external_operation", "full"],
+        default=None,
+        help="Override runtime tool profile for this CLI session.",
+    )
+    parser.add_argument(
+        "--tools-config",
+        default=None,
+        help="Path to tools JSON config (profile + per-tool overrides).",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    service = build_agent_service(
+        tools_config_path=args.tools_config,
+        tools_profile=args.tools_profile,
+        strict_tools_config=bool(args.tools_config),
+    )
     cli = TeamBotCli(
         team_id=args.team_id,
         channel_id=args.channel_id,
@@ -210,7 +226,7 @@ def main() -> None:
         user_id=args.user_id,
         stream_model_tokens=args.stream_model_tokens,
         show_model_payload=args.show_model_payload,
-        service=build_agent_service(),
+        service=service,
     )
     asyncio.run(cli.run())
 

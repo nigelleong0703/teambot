@@ -29,3 +29,15 @@ def test_full_profile_contains_optional_tools() -> None:
     names = {manifest.name for manifest in registry.list_manifests()}
     assert "desktop_screenshot" in names
     assert "send_file_to_user" in names
+
+
+def test_profile_allows_per_tool_overrides() -> None:
+    registry = build_runtime_tool_registry(
+        profile="minimal",
+        provider_manager=None,
+        enable_tools=("get_current_time",),
+        disable_tools=("message_reply",),
+    )
+    names = {manifest.name for manifest in registry.list_manifests()}
+    assert "message_reply" not in names
+    assert "get_current_time" in names
