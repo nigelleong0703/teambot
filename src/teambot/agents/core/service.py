@@ -3,15 +3,14 @@ from __future__ import annotations
 import os
 from typing import Any, Callable
 
-from ...adapters.providers import ROLE_AGENT, ProviderManager, build_default_provider_manager
-from ...adapters.tools import ToolRegistry, build_tool_registry
+from ..providers.manager import ProviderManager
+from ..tools.registry import ToolRegistry
 from ...models import InboundEvent, OutboundReply, ReplyTarget
 from ...plugins.registry import PluginHost
 from ...store import MemoryStore
-from ..skills import SkillRegistry, build_registry
-from ..skills.manager import ensure_skills_initialized, list_available_skills
-from .graph import build_graph
-from .policy import ExecutionPolicyGate
+from ..react_agent import TeamBotReactAgent
+from ..mcp.manager import MCPClientManager
+from ..skills import SkillRegistry
 from .state import build_initial_state
 
 
@@ -19,47 +18,38 @@ class AgentService:
     def __init__(self) -> None:
         self.store = MemoryStore()
         self.dynamic_skills_dir = os.getenv("SKILLS_DIR", "").strip() or None
-        self.provider_manager: ProviderManager | None = build_default_provider_manager()
+        self.provider_manager: ProviderManager | None
         self.registry: SkillRegistry
         self.tool_registry: ToolRegistry
         self.plugin_host: PluginHost
-        self.policy_gate = ExecutionPolicyGate.from_env()
+        self.mcp_manager: MCPClientManager
+        self.mcp_aliases: dict[str, str] = {}
+        self.policy_gate = None
         self.graph = None
+        self._agent = TeamBotReactAgent(
+            dynamic_skills_dir=self.dynamic_skills_dir,
+        )
         self.reload_runtime()
 
     def set_model_event_listener(
         self,
         listener: Callable[[str, dict[str, Any]], None] | None,
     ) -> None:
-        manager = self.provider_manager
-        if manager is None:
-            return
-        if not manager.has_role(ROLE_AGENT):
-            return
-        manager.set_event_listener(listener)
+        self._agent.set_model_event_listener(listener)
 
-    def _build_runtime_components(self) -> tuple[SkillRegistry, ToolRegistry, PluginHost]:
-        ensure_skills_initialized()
-        active_names = set(list_available_skills())
-        enabled_names = active_names if active_names else None
-        skill_registry = build_registry(
-            dynamic_skills_dir=self.dynamic_skills_dir,
-            enabled_skill_names=enabled_names,
-        )
-        tool_registry = build_tool_registry(provider_manager=self.provider_manager)
-        plugin_host = PluginHost()
-        plugin_host.bind_skill_registry(skill_registry)
-        plugin_host.bind_tool_registry(tool_registry)
-        return skill_registry, tool_registry, plugin_host
+    def _sync_runtime_handles(self) -> None:
+        self.provider_manager = self._agent.provider_manager
+        self.registry = self._agent.registry
+        self.tool_registry = self._agent.tool_registry
+        self.plugin_host = self._agent.plugin_host
+        self.mcp_manager = self._agent.mcp_manager
+        self.mcp_aliases = self._agent.mcp_aliases
+        self.policy_gate = self._agent.policy_gate
+        self.graph = self._agent.graph
 
     def reload_runtime(self) -> None:
-        self.registry, self.tool_registry, self.plugin_host = self._build_runtime_components()
-        self.graph = build_graph(
-            self.registry,
-            tool_registry=self.tool_registry,
-            plugin_registry=self.plugin_host,
-            policy_gate=self.policy_gate,
-        )
+        self._agent.reload_runtime()
+        self._sync_runtime_handles()
 
     async def process_event(self, event: InboundEvent) -> OutboundReply:
         existing = await self.store.get_processed_event(event.event_id)
@@ -77,7 +67,7 @@ class AgentService:
             event=event,
             conversation_key=conversation.conversation_key,
         )
-        result = self.graph.invoke(state)
+        result = self._agent.invoke(state)
         reply = OutboundReply(
             event_id=event.event_id,
             conversation_key=conversation.conversation_key,

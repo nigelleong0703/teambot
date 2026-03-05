@@ -15,6 +15,20 @@
 - Any change to core algorithm behavior MUST update `docs/agent-core-algorithm.md` in the same change.
 - If design flaws are identified, add/update them in the "Known Design Problems" section of that document.
 
+## Documentation Structure Policy
+- Canonical docs entrypoint: `docs/README.md`.
+- Code/documentation structure source of truth: `docs/code-structure.md`.
+- Keep docs layered by purpose:
+  - Canonical current-state docs stay under `docs/` root.
+  - Reference material stays under `docs/references/`.
+  - Historical/obsolete docs move to `docs/archive/` (do not delete if still useful for traceability).
+- `docs/plans/` is system-managed workflow content and MUST NOT be reorganized.
+- `openspec/` is system-managed workflow content and MUST NOT be reorganized.
+- Any architecture/runtime/documentation policy change MUST update:
+  - `docs/README.md`
+  - `docs/code-structure.md`
+  - `repo_wiki.md` (when onboarding/runtime flow is impacted)
+
 ## Branch and Commit Naming Policy
 - Follow normal, readable naming conventions for both branch names and commit messages.
 - New features or major behavior changes MUST be developed on a dedicated branch first; do not implement them directly on `main`.

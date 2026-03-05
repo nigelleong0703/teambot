@@ -1,4 +1,4 @@
-from teambot.agents.graph import build_graph
+from teambot.agents.core.graph import build_graph
 from teambot.agents.skills.registry import SkillManifest, SkillRegistry
 from teambot.models import AgentState
 

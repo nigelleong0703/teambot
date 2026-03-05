@@ -1,7 +1,7 @@
 import pytest
 
 from teambot.models import InboundEvent
-from teambot.agents.service import AgentService
+from teambot.agents.core.service import AgentService
 
 
 @pytest.mark.asyncio

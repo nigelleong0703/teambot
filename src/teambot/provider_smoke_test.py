@@ -5,7 +5,7 @@ import json
 import sys
 from typing import Any
 
-from .adapters.providers import (
+from .agents.providers.manager import (
     ROLE_AGENT,
     ProviderInvocationError,
     build_default_provider_manager,
