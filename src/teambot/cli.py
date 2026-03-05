@@ -7,7 +7,7 @@ import time
 import uuid
 from typing import Any
 
-from .agents.service import AgentService
+from .agents.core.service import AgentService
 from .interfaces.bootstrap import build_agent_service
 from .models import InboundEvent
 

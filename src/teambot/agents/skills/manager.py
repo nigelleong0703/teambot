@@ -94,14 +94,14 @@ def list_available_skills() -> list[str]:
 
 
 def ensure_skills_initialized() -> None:
+    active_dir = get_active_skills_dir()
     active = list_available_skills()
     if active:
         return
-    synced, _ = sync_skills_to_active(skill_names=None, force=False)
-    if synced == 0:
-        logger.warning(
-            "No skills found to activate. Check builtin/customized skills directories."
-        )
+    logger.warning(
+        "No active skills found in %s. Runtime will load no skills until sync/enable is performed.",
+        active_dir,
+    )
 
 
 def _parse_frontmatter(content: str) -> tuple[str, str]:

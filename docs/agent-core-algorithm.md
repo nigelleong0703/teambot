@@ -10,6 +10,7 @@ Any change to routing, loop termination, tool execution, model prompt contract, 
 - Runtime loop: `reason -> act -> observe -> (loop | compose_reply)`
 - Deterministic reason-stage routing rules
 - Tool execution and policy gate behavior
+- Built-in tool surface registration with profile + namesake strategy + MCP bridge
 - Model prompt contract used by `message_reply` tool (working-dir system prompt)
 - Streaming behavior in provider client
 - Known design problems
@@ -22,7 +23,7 @@ flowchart TD
     B --> C{"event_id already processed?"}
     C -- "yes" --> C1["return cached reply"]
     C -- "no" --> D["build_initial_state"]
-    D --> E["AgentCoreRuntime.invoke"]
+    D --> E["TeamBotReactAgent.invoke"]
 
     subgraph L["ReAct Loop"]
       E --> F["reason_node (deterministic)"]
@@ -87,8 +88,17 @@ flowchart TD
 
 - Files:
   - `src/teambot/agents/core/executor.py`
+  - `src/teambot/agents/react_agent.py`
   - `src/teambot/agents/prompts/system_prompt.py`
   - `src/teambot/agents/tools/builtin.py`
+  - `src/teambot/agents/tools/runtime_builder.py`
+  - `src/teambot/agents/tools/catalog.py`
+  - `src/teambot/agents/tools/profiles.py`
+  - `src/teambot/agents/tools/namesake.py`
+  - `src/teambot/agents/tools/external_operation_tools.py`
+  - `src/teambot/agents/runtime/orchestrator.py`
+  - `src/teambot/agents/mcp/manager.py`
+  - `src/teambot/agents/mcp/bridge.py`
 - Behavior:
   - `ExecutionPolicyGate` evaluates action risk first.
   - If denied (`high` risk not allowed), returns blocked result.
@@ -111,6 +121,39 @@ System prompt is composed from working-directory markdown files in this order:
 
 - Model output is consumed as plain text (no JSON required).
 - If provider invocation fails or output is empty, tool falls back to deterministic local message.
+
+#### 3.4 Built-in tool surface profiles
+
+- Tool set is assembled by runtime profile (`TOOLS_PROFILE`) and namesake strategy (`TOOLS_NAMESAKE_STRATEGY`).
+- Supported profiles:
+  - `minimal`: `message_reply`
+  - `external_operation`: `message_reply` + `read_file`/`write_file`/`edit_file`/`execute_shell_command`/`browser_use`/`get_current_time`
+  - `full`: `external_operation` + `desktop_screenshot` + `send_file_to_user`
+- Optional debug toggles:
+  - `ENABLE_ECHO_TOOL=true` -> `tool_echo`
+  - `ENABLE_EXEC_TOOL=true` -> `exec_command` alias
+- Namesake strategy controls conflict behavior for runtime-injected tools (`skip|override|raise|rename`).
+
+#### 3.5 High-risk external-operation tools
+
+- The following built-in tools are classified as `high` risk and policy-gated:
+  - `write_file`
+  - `edit_file`
+  - `execute_shell_command`
+  - `exec_command` (alias)
+- When blocked, runtime returns deterministic blocked output without invoking the underlying handler.
+
+#### 3.6 Skills runtime loading semantics
+
+- Runtime loads skills from `active_skills` only.
+- `ensure_skills_initialized()` does not auto-sync skills anymore; it warns when active set is empty.
+- Skill enable/sync lifecycle is explicit via skill manager operations.
+
+#### 3.7 MCP runtime injection
+
+- MCP tools are loaded by MCP manager when `MCP_ENABLED=true`.
+- MCP tool manifests are bridged into the same `ToolRegistry` and action contract as builtin tools.
+- Namesake strategy also applies to MCP-vs-builtin name collisions.
 
 ### 4) Observe
 
@@ -178,8 +221,19 @@ Update this document whenever any of the following changes:
 - `src/teambot/agents/core/graph.py`
 - `src/teambot/agents/core/executor.py`
 - `src/teambot/agents/tools/builtin.py`
+ - `src/teambot/agents/tools/runtime_builder.py`
+ - `src/teambot/agents/tools/catalog.py`
+ - `src/teambot/agents/tools/profiles.py`
+ - `src/teambot/agents/tools/namesake.py`
+- `src/teambot/agents/tools/external_operation_tools.py`
+ - `src/teambot/agents/runtime/orchestrator.py`
+ - `src/teambot/agents/mcp/manager.py`
+ - `src/teambot/agents/mcp/bridge.py`
+ - `src/teambot/agents/skills/runtime_loader.py`
+ - `src/teambot/agents/skills/manager.py`
 - `src/teambot/agents/prompts/system_prompt.py`
 - `src/teambot/agents/providers/manager.py`
 - `src/teambot/agents/providers/langchain_client.py`
 - `src/teambot/agents/core/state.py`
 - `src/teambot/agents/core/service.py`
+- `src/teambot/agents/react_agent.py`

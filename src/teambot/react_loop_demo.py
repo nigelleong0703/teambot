@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from .adapters.providers import ROLE_AGENT
+from .agents.providers.manager import ROLE_AGENT
 from .agents.core.state import build_initial_state
 from .interfaces.bootstrap import build_agent_service
 from .models import InboundEvent, ReplyTarget

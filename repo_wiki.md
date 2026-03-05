@@ -1,5 +1,7 @@
 # Repo Wiki (AI Quick Onboarding)
 
+代码结构规范以 `docs/code-structure.md` 为唯一准则。
+
 ## 1. 这个仓库是做什么的
 
 `teambot-mvp` 是一个 TeamBot 风格后端 Agent MVP，核心是自研 ReAct 运行时：
@@ -8,21 +10,22 @@
 - `reason` 是确定性规则路由（不是 model planner）
 - skills/tool 显式注册，统一到一个 action surface
 - `message_reply` 是默认 message tool（可走模型，也可本地回退）
+- 内部 runtime 采用 CoPaw 风格：tool profile + namesake 策略 + active-only skills + MCP 注入
 - 线程路由与事件幂等是硬约束
 
 ## 2. 先看这 4 个文件（最快理解路径）
 
-1. `src/teambot/agents/core/graph.py`
-2. `src/teambot/agents/core/router.py`
-3. `src/teambot/agents/core/executor.py`
-4. `src/teambot/agents/tools/builtin.py`
+1. `src/teambot/agents/react_agent.py`
+2. `src/teambot/agents/core/graph.py`
+3. `src/teambot/agents/core/router.py`
+4. `src/teambot/agents/core/executor.py`
 
 看完这四个文件，基本就能理解“怎么决策 + 怎么执行 + 模型在哪里调用”。
 
 ## 3. 单次请求执行链
 
 1. 入口接收事件（HTTP/CLI）
-2. `AgentService.process_event` 构建初始状态并调用 runtime
+2. `AgentService.process_event` 构建初始状态并调用 `TeamBotReactAgent`
 3. runtime 进入 ReAct 循环
 4. `reason` 用固定优先级选 action 或结束
 5. `act` 执行动作（skill/tool + policy）
@@ -41,11 +44,20 @@
 - `src/teambot/interfaces/bootstrap.py`
   统一 composition root（API/CLI 都从这里构建 service）
 
+- `src/teambot/agents/react_agent.py`
+  ReAct agent runtime owner（组装 tools/skills/mcp + 构建 graph + invoke）
+
 - `src/teambot/agents/core/*`
-  核心 runtime 节点与循环控制
+  核心 ReAct 节点与循环控制（由 `react_agent` 调用）
 
 - `src/teambot/agents/tools/*`
-  tool registry 与 builtin tools（含 `message_reply`）
+  tool registry 与 builtin tool surface（profile 驱动）
+
+- `src/teambot/agents/runtime/*`
+  runtime orchestrator（组装 skills/tools/mcp -> plugin host）
+
+- `src/teambot/agents/mcp/*`
+  MCP 配置、manager、tool bridge
 
 - `src/teambot/agents/skills/*`
   skill registry、builtin skills、active skills 生命周期
@@ -69,9 +81,17 @@
 - `src/teambot/agents/prompts/system_prompt.py`
   - 从工作目录读取 `AGENTS.md`（required）+ `SOUL.md` + `PROFILE.md`
 - `src/teambot/agents/tools/builtin.py`
-  - `_GeneralReplyTool.__call__` 里直接使用 `build_system_prompt_from_working_dir()`
-  - `user_message` 直接取 `state.user_text`
-  - 返回自然语言文本（JSON 非必须）
+  - 读取 `TOOLS_PROFILE` / `TOOLS_NAMESAKE_STRATEGY`
+  - 调用 `runtime_builder` 组装 builtin tool surface
+- `src/teambot/agents/tools/catalog.py`
+  - `message_reply` 与 external-operation 工具定义（manifest + handler）
+- `src/teambot/agents/tools/runtime_builder.py`
+  - profile 选集 + namesake 冲突策略
+- `src/teambot/agents/tools/external_operation_tools.py`
+  - `read_file` / `write_file` / `edit_file` / `execute_shell_command` / `browser_use` / `get_current_time`
+  - `desktop_screenshot` / `send_file_to_user`（full profile）
+- `src/teambot/agents/mcp/manager.py` + `bridge.py`
+  - MCP tools 加载并桥接到同一 tool registry
 
 `reason/observe/compose` 是确定性代码阶段，没有 LLM prompt。
 
@@ -94,7 +114,10 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - `react_done=true` 会直接走 `compose_reply`
 - `observe` 阶段若无 `next_skill`，默认结束
 - `message_reply` 是 low-risk message tool（不是 skill）
-- 高风险 action 必须经过 policy gate
+- tool surface 由 `TOOLS_PROFILE` 决定（`minimal|external_operation|full`）
+- skills runtime 只加载 active_skills；不会自动 sync 初始化
+- MCP 开启时通过 bridge 注入同一 action surface（`MCP_ENABLED=true`）
+- 高风险 action（`write_file` / `edit_file` / `execute_shell_command` / `exec_command`）必须经过 policy gate
 - 流式输出是否“细粒度”，取决于 provider chunk 粒度
 
 ## 8. 常用调试入口
@@ -106,11 +129,13 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 
 ## 9. 文档优先级（必须遵守）
 
-1. `docs/agent-core-algorithm.md`
+1. `docs/README.md`
+   文档入口索引（先看 canonical 列表与路径）
+2. `docs/agent-core-algorithm.md`
    Agent 核心算法唯一事实来源（流程、prompt、规则）
-2. `docs/architecture-boundaries.md`
+3. `docs/architecture-boundaries.md`
    模块边界与依赖方向
-3. `AGENTS.md`
+4. `AGENTS.md`
    仓库协作与命名规范
 
 ## 10. 维护约定
