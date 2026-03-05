@@ -42,6 +42,7 @@ class ProviderSettings:
 @dataclass(frozen=True)
 class NormalizedResponse:
     text: str
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
     finish_reason: str = ""
     usage: dict[str, Any] = field(default_factory=dict)
     raw: Any = None
@@ -55,6 +56,7 @@ class ProviderClient(Protocol):
         *,
         system_prompt: str,
         payload: dict[str, Any] | str,
+        tools: list[dict[str, Any]] | None = None,
         on_token: Callable[[str], None] | None = None,
         on_reasoning: Callable[[str], None] | None = None,
     ) -> NormalizedResponse:

@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from ...agent_core.contracts import ModelToolCall, ModelToolInvocationResult, ModelToolSpec
 from .base import (
     ProviderAttempt,
     ProviderClient,
@@ -164,12 +165,62 @@ class ProviderManager:
             usage=raw["usage"],
         )
 
+    def invoke_role_tools(
+        self,
+        *,
+        role: str,
+        system_prompt: str,
+        payload: dict[str, Any],
+        tools: list[ModelToolSpec],
+        on_token: Callable[[str], None] | None = None,
+    ) -> ModelToolInvocationResult:
+        tool_payload = [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": tool.input_schema,
+            }
+            for tool in tools
+        ]
+        raw = self._invoke_role_raw(
+            role=role,
+            system_prompt=system_prompt,
+            payload=payload,
+            tools=tool_payload,
+            on_token=on_token,
+        )
+        parsed_tool_calls: list[ModelToolCall] = []
+        for item in raw.get("tool_calls", []):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            arguments_raw = item.get("arguments", {})
+            arguments = arguments_raw if isinstance(arguments_raw, dict) else {}
+            parsed_tool_calls.append(
+                ModelToolCall(
+                    name=name,
+                    arguments=arguments,
+                    call_id=str(item.get("id", "")).strip(),
+                )
+            )
+        return ModelToolInvocationResult(
+            text=str(raw.get("text", "")),
+            tool_calls=parsed_tool_calls,
+            provider=str(raw.get("provider", "")),
+            model=str(raw.get("model", "")),
+            finish_reason=str(raw.get("finish_reason", "")),
+            usage=raw.get("usage", {}) if isinstance(raw.get("usage"), dict) else {},
+        )
+
     def _invoke_role_raw(
         self,
         *,
         role: str,
         system_prompt: str,
         payload: dict[str, Any] | str,
+        tools: list[dict[str, Any]] | None = None,
         on_token: Callable[[str], None] | None = None,
     ) -> dict[str, Any]:
         binding = self.settings.get_role_binding(role)
@@ -188,6 +239,7 @@ class ProviderManager:
                     "endpoint": endpoint.base_url or "",
                     "system_prompt": system_prompt,
                     "request_payload": payload,
+                    "tools": tools or [],
                 },
             )
             try:
@@ -216,25 +268,49 @@ class ProviderManager:
                         },
                     )
 
-                try:
-                    response = client.invoke(
-                        system_prompt=system_prompt,
-                        payload=payload,
-                        on_token=_forward_token if on_token or self._event_listener else None,
-                        on_reasoning=_forward_reasoning if self._event_listener else None,
-                    )
-                except TypeError:
+                invoke_variants = [
+                    {
+                        "system_prompt": system_prompt,
+                        "payload": payload,
+                        "tools": tools,
+                        "on_token": _forward_token if on_token or self._event_listener else None,
+                        "on_reasoning": _forward_reasoning if self._event_listener else None,
+                    },
+                    {
+                        "system_prompt": system_prompt,
+                        "payload": payload,
+                        "tools": tools,
+                        "on_token": _forward_token if on_token or self._event_listener else None,
+                    },
+                    {
+                        "system_prompt": system_prompt,
+                        "payload": payload,
+                        "tools": tools,
+                    },
+                    {
+                        "system_prompt": system_prompt,
+                        "payload": payload,
+                        "on_token": _forward_token if on_token or self._event_listener else None,
+                    },
+                    {
+                        "system_prompt": system_prompt,
+                        "payload": payload,
+                    },
+                ]
+
+                last_type_error: TypeError | None = None
+                response = None
+                for kwargs in invoke_variants:
                     try:
-                        response = client.invoke(
-                            system_prompt=system_prompt,
-                            payload=payload,
-                            on_token=_forward_token if on_token or self._event_listener else None,
-                        )
-                    except TypeError:
-                        response = client.invoke(
-                            system_prompt=system_prompt,
-                            payload=payload,
-                        )
+                        response = client.invoke(**kwargs)
+                        break
+                    except TypeError as exc:
+                        last_type_error = exc
+                        continue
+                if response is None:
+                    if last_type_error is not None:
+                        raise last_type_error
+                    raise ProviderInvocationError("provider client invoke returned no response")
                 elapsed_ms = int((time.perf_counter() - started_at) * 1000)
                 self._emit(
                     "model_end",
@@ -253,6 +329,7 @@ class ProviderManager:
                     "model": endpoint.model,
                     "finish_reason": response.finish_reason,
                     "usage": response.usage,
+                    "tool_calls": response.tool_calls,
                 }
             except Exception as exc:
                 elapsed_ms = int((time.perf_counter() - started_at) * 1000)

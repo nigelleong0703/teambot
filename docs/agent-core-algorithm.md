@@ -8,7 +8,7 @@ Any change to routing, loop termination, tool execution, model prompt contract, 
 ## Scope
 
 - Runtime loop: `reason -> act -> observe -> (loop | compose_reply)`
-- Reason-stage planning contract (`final` or `action`)
+- Reason-stage planning contract (native tool call or final text)
 - Tool execution and policy gate behavior
 - Built-in tool surface registration with profile + namesake strategy + MCP bridge
 - Model prompt contract used by planner in reason stage
@@ -52,11 +52,10 @@ flowchart TD
     R2 -- "no" --> R3{"deterministic direct route? (/todo, reaction, tools question)"}
     R3 -- "yes" --> R3A["select action or finish directly"]
     R3 -- "no" --> R4{"planner available?"}
-    R4 -- "yes" --> R5["invoke planner(JSON)"]
-    R5 --> R6{"decision"}
-    R6 -- "final" --> R6A["react_done=true, skill_output.message=final"]
-    R6 -- "action" --> R6B["selected_skill + skill_input"]
-    R6 -- "invalid" --> R6C["react_done=true, deterministic fallback"]
+    R4 -- "yes" --> R5["invoke planner(native tools)"]
+    R5 --> R6{"tool_calls?"}
+    R6 -- "yes" --> R6B["selected_skill + skill_input(from tool args)"]
+    R6 -- "no" --> R6A["react_done=true, skill_output.message=final text"]
     R4 -- "no" --> R7["react_done=true, deterministic fallback"]
 ```
 
@@ -81,8 +80,8 @@ flowchart TD
 - Responsibility:
   - follow-up route (`next_skill`) from previous observation
   - deterministic direct routes (`reaction_added`, `/todo`, tools question)
-  - planner decision (`final` or `action`) via JSON contract
-- Planner system prompt combines working-dir prompt + action catalog schema.
+  - planner result via native model tool-calling or direct final text
+- Planner system prompt combines working-dir prompt + tool-usage guidance.
 
 ### 3) Act (Unified Action + Policy Gate)
 
@@ -117,10 +116,11 @@ Base system prompt is composed from working-directory markdown files in this ord
 
 - Planner input payload includes:
   - `event_type`, `user_text`, `reaction`, `last_observation`
-- Planner output must be JSON:
-  - `{"decision":"final","message":"..."}`
-  - or `{"decision":"action","name":"<action>","input":{...}}`
-- If planner output is invalid, runtime safely falls back to final deterministic reply.
+- Planner receives native tool schemas (for runtime-enabled tools).
+- Planner output is one of:
+  - native `tool_calls` (name + args), mapped to `selected_skill` + `skill_input`
+  - plain final text, mapped to `skill_output.message`
+- If planner output is empty/invalid, runtime safely falls back to final deterministic reply.
 
 #### 3.1 Built-in tool surface profiles
 
@@ -195,7 +195,7 @@ LangChain is used in provider client adapters, not in runtime control-flow files
 
 Runtime call chain for model planning:
 
-- `reason planner` -> `ProviderManager.invoke_role_json(...)` -> `LangChainProviderClient`
+- `reason planner` -> `ProviderManager.invoke_role_tools(...)` -> `LangChainProviderClient.bind_tools(...)`
 
 ## Streaming Behavior
 

@@ -31,6 +31,7 @@ class _FakeClient:
         *,
         system_prompt: str,
         payload: dict | str,
+        tools: list[dict] | None = None,
         on_token: Callable[[str], None] | None = None,
     ) -> NormalizedResponse:
         if self.fail:
@@ -40,9 +41,10 @@ class _FakeClient:
             on_token("true}")
         return NormalizedResponse(
             text=self.response_text,
+            tool_calls=[],
             finish_reason="stop",
             usage={"total_tokens": 10},
-            raw={"system_prompt": system_prompt, "payload": payload},
+            raw={"system_prompt": system_prompt, "payload": payload, "tools": tools or []},
         )
 
 
@@ -199,3 +201,56 @@ def test_provider_manager_text_invocation() -> None:
     )
     assert result.text == "hello from text mode"
     assert result.provider == "openai-compatible"
+
+
+def test_provider_manager_tool_invocation() -> None:
+    endpoint = ProviderEndpoint(provider="openai-compatible", model="tool-model")
+    settings = ProviderSettings(
+        role_bindings={
+            "agent_model": ProviderRoleBinding(
+                role="agent_model",
+                endpoints=[endpoint],
+                max_attempts=1,
+            )
+        }
+    )
+
+    class _ToolClient(_FakeClient):
+        def invoke(
+            self,
+            *,
+            system_prompt: str,
+            payload: dict | str,
+            tools: list[dict] | None = None,
+            on_token: Callable[[str], None] | None = None,
+        ) -> NormalizedResponse:
+            _ = on_token
+            return NormalizedResponse(
+                text="",
+                tool_calls=[
+                    {
+                        "name": "get_current_time",
+                        "arguments": {"timezone": "Asia/Kuala_Lumpur"},
+                        "id": "call_1",
+                    }
+                ],
+                finish_reason="tool_calls",
+                usage={},
+                raw={"system_prompt": system_prompt, "payload": payload, "tools": tools or []},
+            )
+
+    manager = ProviderManager(
+        settings=settings,
+        client_registry=ProviderClientRegistry(
+            client_factory=lambda ep: _ToolClient(endpoint=ep)
+        ),
+    )
+    result = manager.invoke_role_tools(
+        role="agent_model",
+        system_prompt="sys",
+        payload={"message": "time"},
+        tools=[],
+    )
+    assert result.tool_calls
+    assert result.tool_calls[0].name == "get_current_time"
+    assert result.tool_calls[0].arguments["timezone"] == "Asia/Kuala_Lumpur"

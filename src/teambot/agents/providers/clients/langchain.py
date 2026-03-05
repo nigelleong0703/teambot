@@ -22,10 +22,13 @@ class LangChainProviderClient:
         *,
         system_prompt: str,
         payload: dict[str, Any] | str,
+        tools: list[dict[str, Any]] | None = None,
         on_token: Callable[[str], None] | None = None,
         on_reasoning: Callable[[str], None] | None = None,
     ) -> NormalizedResponse:
         model = self._get_model()
+        if tools:
+            model = self._bind_tools(model, tools)
         try:
             from langchain_core.messages import HumanMessage, SystemMessage
         except Exception as exc:
@@ -38,7 +41,7 @@ class LangChainProviderClient:
             SystemMessage(content=system_prompt),
             HumanMessage(content=body),
         ]
-        if on_token is None:
+        if on_token is None or tools:
             response = model.invoke(messages)
             return normalize_chat_response(response)
 
@@ -89,6 +92,14 @@ class LangChainProviderClient:
             usage=usage,
             raw=raw_chunks,
         )
+
+    def _bind_tools(self, model: Any, tools: list[dict[str, Any]]) -> Any:
+        provider = normalize_provider_name(self.endpoint.provider)
+        provider_tools = [_tool_spec_for_provider(provider, tool) for tool in tools]
+        try:
+            return model.bind_tools(provider_tools, tool_choice="auto")
+        except TypeError:
+            return model.bind_tools(provider_tools)
 
     def _get_model(self):
         if self._model is not None:
@@ -150,6 +161,7 @@ def normalize_chat_response(response: Any) -> NormalizedResponse:
     text = _content_to_text(content)
     finish_reason = ""
     usage: dict[str, Any] = {}
+    tool_calls = _extract_tool_calls(response)
 
     response_metadata = getattr(response, "response_metadata", None)
     if isinstance(response_metadata, dict):
@@ -161,6 +173,7 @@ def normalize_chat_response(response: Any) -> NormalizedResponse:
 
     return NormalizedResponse(
         text=text,
+        tool_calls=tool_calls,
         finish_reason=finish_reason,
         usage=usage,
         raw=response,
@@ -240,4 +253,87 @@ def _extract_usage(chunk: Any) -> dict[str, Any]:
         alt = metadata.get("usage")
         if isinstance(alt, dict):
             return alt
+    return {}
+
+
+def _tool_spec_for_provider(provider: str, tool: dict[str, Any]) -> dict[str, Any]:
+    name = str(tool.get("name", "")).strip()
+    description = str(tool.get("description", "")).strip()
+    input_schema = tool.get("input_schema")
+    if not isinstance(input_schema, dict):
+        input_schema = {"type": "object", "properties": {}}
+
+    if is_anthropic_provider(provider):
+        return {
+            "name": name,
+            "description": description,
+            "input_schema": input_schema,
+        }
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": input_schema,
+        },
+    }
+
+
+def _extract_tool_calls(response: Any) -> list[dict[str, Any]]:
+    raw = getattr(response, "tool_calls", None)
+    parsed: list[dict[str, Any]] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            call_id = str(item.get("id", "")).strip()
+            args_raw = item.get("args", {})
+            args = _coerce_tool_args(args_raw)
+            if not name:
+                continue
+            parsed.append(
+                {
+                    "name": name,
+                    "arguments": args,
+                    "id": call_id,
+                }
+            )
+    if parsed:
+        return parsed
+
+    content = getattr(response, "content", None)
+    if isinstance(content, list):
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            kind = str(item.get("type", "")).strip().lower()
+            if kind != "tool_use":
+                continue
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            parsed.append(
+                {
+                    "name": name,
+                    "arguments": _coerce_tool_args(item.get("input", {})),
+                    "id": str(item.get("id", "")).strip(),
+                }
+            )
+    return parsed
+
+
+def _coerce_tool_args(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return {}
+        try:
+            decoded = json.loads(stripped)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(decoded, dict):
+            return decoded
     return {}

@@ -45,6 +45,30 @@ class ModelTextInvocationResult:
     usage: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class ModelToolSpec:
+    name: str
+    description: str
+    input_schema: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ModelToolCall:
+    name: str
+    arguments: dict[str, Any] = field(default_factory=dict)
+    call_id: str = ""
+
+
+@dataclass(frozen=True)
+class ModelToolInvocationResult:
+    text: str
+    tool_calls: list[ModelToolCall] = field(default_factory=list)
+    provider: str = ""
+    model: str = ""
+    finish_reason: str = ""
+    usage: dict[str, Any] = field(default_factory=dict)
+
+
 class ModelRoleInvoker(Protocol):
     def has_role(self, role: str) -> bool:
         ...
@@ -65,5 +89,15 @@ class ModelRoleInvoker(Protocol):
         system_prompt: str,
         user_message: str,
     ) -> ModelTextInvocationResult:
+        ...
+
+    def invoke_role_tools(
+        self,
+        *,
+        role: str,
+        system_prompt: str,
+        payload: dict[str, Any],
+        tools: list[ModelToolSpec],
+    ) -> ModelToolInvocationResult:
         ...
 

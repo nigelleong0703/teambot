@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ...agent_core.contracts import ModelRoleInvoker
+from ...agent_core.contracts import ModelRoleInvoker, ModelToolSpec
 from ...domain.models import AgentState
 from ..prompts import build_system_prompt_from_working_dir
 from ..providers.manager import ROLE_AGENT
@@ -70,25 +70,13 @@ def _deterministic_direct_route(state: AgentState, action_registry: ActionRegist
     return None
 
 
-def _planner_prompt(action_registry: ActionRegistry) -> str:
-    actions = [
-        {
-            "name": action.name,
-            "description": action.description,
-            "source": action.source,
-            "risk_level": action.risk_level,
-        }
-        for action in action_registry.list_actions()
-    ]
-    actions_json = json.dumps(actions, ensure_ascii=False)
+def _planner_prompt() -> str:
     return (
-        "You are the TeamBot planner.\n"
-        "Return ONLY JSON object.\n"
-        "Schema:\n"
-        '{"decision":"final","message":"..."}\n'
-        'or {"decision":"action","name":"<action_name>","input":{}}.\n'
-        "Use only actions from the provided list.\n"
-        f"Available actions: {actions_json}"
+        "You are TeamBot.\n"
+        "You may call tools to fulfill user requests.\n"
+        "Call tools when external operations are required (files, shell, browser, time).\n"
+        "If no tool is needed, respond directly in plain text.\n"
+        "Never invent tool names."
     )
 
 
@@ -98,10 +86,20 @@ def _safe_str(value: object) -> str:
     return ""
 
 
-def _safe_dict(value: object) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    return {}
+def _tool_specs(action_registry: ActionRegistry) -> list[ModelToolSpec]:
+    specs: list[ModelToolSpec] = []
+    for action in action_registry.list_actions():
+        if action.source != "tool":
+            continue
+        schema = action.input_schema if isinstance(action.input_schema, dict) else {}
+        specs.append(
+            ModelToolSpec(
+                name=action.name,
+                description=action.description,
+                input_schema=schema or {"type": "object", "properties": {}},
+            )
+        )
+    return specs
 
 
 def _route_with_planner(
@@ -116,34 +114,49 @@ def _route_with_planner(
         "reaction": state.get("reaction"),
         "last_observation": state.get("skill_output", {}),
     }
-    result = planner.invoke_role_json(
-        role=ROLE_AGENT,
-        system_prompt=f"{build_system_prompt_from_working_dir()}\n\n{_planner_prompt(action_registry)}",
-        payload=payload,
-    )
-    data = result.data
-    decision = _safe_str(data.get("decision"))
-
-    if decision == "action":
-        action_name = _safe_str(data.get("name"))
-        action_input = _safe_dict(data.get("input"))
-        if action_name and action_registry.has_action(action_name):
-            return _select_action(
-                action_name,
-                f"Planner route: action -> {action_name}",
-                skill_input=action_input,
-            )
+    tools = _tool_specs(action_registry)
+    if not tools:
+        result = planner.invoke_role_text(
+            role=ROLE_AGENT,
+            system_prompt=f"{build_system_prompt_from_working_dir()}\n\n{_planner_prompt()}",
+            user_message=json.dumps(payload, ensure_ascii=False),
+        )
+        message = _safe_str(result.text)
+        if message:
+            return _finish("Planner route: final text answer", message=message)
         return _finish(
-            "Planner selected unknown action; fallback to direct reply.",
+            "Planner returned empty text and no tools were available.",
+            message="I could not produce a final answer.",
+        )
+
+    result = planner.invoke_role_tools(
+        role=ROLE_AGENT,
+        system_prompt=f"{build_system_prompt_from_working_dir()}\n\n{_planner_prompt()}",
+        payload=payload,
+        tools=tools,
+    )
+
+    if result.tool_calls:
+        for call in result.tool_calls:
+            action_name = _safe_str(call.name)
+            action_input = call.arguments if isinstance(call.arguments, dict) else {}
+            if action_name and action_registry.has_action(action_name):
+                return _select_action(
+                    action_name,
+                    f"Planner route: native tool call -> {action_name}",
+                    skill_input=action_input,
+                )
+        return _finish(
+            "Planner called unknown tool(s); fallback to direct reply.",
             message="I could not map that tool call to an enabled action.",
         )
 
-    message = _safe_str(data.get("message"))
-    if decision == "final" and message:
+    message = _safe_str(result.text)
+    if message:
         return _finish("Planner route: final answer", message=message)
 
     return _finish(
-        "Planner returned invalid shape; fallback to deterministic reply.",
+        "Planner returned no text and no tool calls.",
         message="I could not produce a valid planner output.",
     )
 
