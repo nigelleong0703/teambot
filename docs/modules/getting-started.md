@@ -51,6 +51,29 @@ curl http://127.0.0.1:8000/health
 PYTHONPATH=src python -m teambot.app.cli
 ```
 
+Optional: run CLI with tool config JSON and profile override:
+
+```bash
+PYTHONPATH=src python -m teambot.app.cli --tools-config ./tools.json --tools-profile external_operation
+```
+
+Example `tools.json`:
+
+```json
+{
+  "profile": "external_operation",
+  "namesake_strategy": "skip",
+  "overrides": {
+    "enable": ["get_current_time"],
+    "disable": ["execute_shell_command"]
+  },
+  "extras": {
+    "enable_echo_tool": false,
+    "enable_exec_alias": false
+  }
+}
+```
+
 ## 5) Run Tests
 
 ```bash

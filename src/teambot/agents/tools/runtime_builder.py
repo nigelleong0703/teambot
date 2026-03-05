@@ -7,7 +7,14 @@ from .profiles import resolve_tool_profile
 from .registry import ToolRegistry
 
 
-def _ordered_profile_names(profile: str | None) -> list[str]:
+def _ordered_profile_names(
+    profile: str | None,
+    *,
+    enable_echo_tool: bool,
+    enable_exec_alias: bool,
+    enable_tools: tuple[str, ...] | list[str] | None,
+    disable_tools: tuple[str, ...] | list[str] | None,
+) -> list[str]:
     # Keep deterministic order for stable manifests/tests.
     order = [
         "message_reply",
@@ -19,8 +26,18 @@ def _ordered_profile_names(profile: str | None) -> list[str]:
         "get_current_time",
         "desktop_screenshot",
         "send_file_to_user",
+        "tool_echo",
+        "exec_command",
     ]
     selected = resolve_tool_profile(profile)
+    if enable_echo_tool:
+        selected.add("tool_echo")
+    if enable_exec_alias:
+        selected.add("exec_command")
+    for name in (enable_tools or []):
+        selected.add(name)
+    for name in (disable_tools or []):
+        selected.discard(name)
     return [name for name in order if name in selected]
 
 
@@ -31,13 +48,23 @@ def build_runtime_tool_registry(
     namesake_strategy: str = "skip",
     enable_echo_tool: bool = False,
     enable_exec_alias: bool = False,
+    enable_tools: tuple[str, ...] | list[str] | None = None,
+    disable_tools: tuple[str, ...] | list[str] | None = None,
 ) -> ToolRegistry:
     strategy = normalize_namesake_strategy(namesake_strategy)
     registry = ToolRegistry()
     definitions = builtin_tool_definitions(provider_manager)
     registered_names: set[str] = set()
 
-    for name in _ordered_profile_names(profile):
+    for name in _ordered_profile_names(
+        profile,
+        enable_echo_tool=enable_echo_tool,
+        enable_exec_alias=enable_exec_alias,
+        enable_tools=enable_tools,
+        disable_tools=disable_tools,
+    ):
+        if name not in definitions:
+            continue
         manifest, handler = definitions[name]
         resolved_name = apply_namesake_strategy(
             existing=registered_names,
@@ -56,14 +83,5 @@ def build_runtime_tool_registry(
             )
         registry.register(manifest, handler)
         registered_names.add(manifest.name)
-
-    if enable_echo_tool:
-        manifest, handler = definitions["tool_echo"]
-        registry.register(manifest, handler)
-
-    if enable_exec_alias:
-        manifest, handler = definitions["exec_command"]
-        if not registry.has(manifest.name):
-            registry.register(manifest, handler)
 
     return registry

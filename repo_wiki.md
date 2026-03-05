@@ -115,6 +115,7 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - `observe` 阶段若无 `next_skill`，默认结束
 - `message_reply` 是 low-risk message tool（不是 skill）
 - tool surface 由 `TOOLS_PROFILE` 决定（`minimal|external_operation|full`）
+- CLI 支持 `--tools-profile` 与 `--tools-config <json>` 做 session 级覆盖（profile + per-tool enable/disable）
 - skills runtime 只加载 active_skills；不会自动 sync 初始化
 - MCP 开启时通过 bridge 注入同一 action surface（`MCP_ENABLED=true`）
 - 高风险 action（`write_file` / `edit_file` / `execute_shell_command` / `exec_command`）必须经过 policy gate

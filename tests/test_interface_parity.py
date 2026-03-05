@@ -18,7 +18,7 @@ def test_api_and_cli_use_bootstrap_composition_root() -> None:
     assert "from ..interfaces.bootstrap import build_agent_service" in main_py
     assert "from ..interfaces.bootstrap import build_agent_service" in cli_py
     assert "service = build_agent_service()" in main_py
-    assert "service=build_agent_service()," in cli_py
+    assert "service = build_agent_service(" in cli_py
 
 
 @pytest.mark.asyncio

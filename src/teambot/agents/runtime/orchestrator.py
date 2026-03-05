@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 from ..providers.manager import ProviderManager
@@ -8,12 +7,9 @@ from ...plugins.registry import PluginHost
 from ..mcp import MCPClientManager, load_mcp_runtime_config, register_mcp_tools
 from ..skills.registry import SkillRegistry
 from ..skills.runtime_loader import build_runtime_skill_registry
+from ..tools.config import load_runtime_tool_config
 from ..tools.registry import ToolRegistry
 from ..tools.runtime_builder import build_runtime_tool_registry
-
-
-def _env_enabled(name: str) -> bool:
-    return os.getenv(name, "").strip().lower() in {"1", "true", "yes"}
 
 
 @dataclass
@@ -31,21 +27,34 @@ class RuntimeOrchestrator:
         *,
         provider_manager: ProviderManager | None,
         dynamic_skills_dir: str | None,
+        tools_config_path: str | None = None,
+        tools_profile: str | None = None,
+        strict_tools_config: bool = False,
     ) -> None:
         self._provider_manager = provider_manager
         self._dynamic_skills_dir = dynamic_skills_dir
+        self._tools_config_path = tools_config_path
+        self._tools_profile = tools_profile
+        self._strict_tools_config = strict_tools_config
 
     def build(self) -> RuntimeBundle:
         skill_registry = build_runtime_skill_registry(
             dynamic_skills_dir=self._dynamic_skills_dir,
         )
+        tool_config = load_runtime_tool_config(
+            config_path=self._tools_config_path,
+            profile_override=self._tools_profile,
+            strict_path=self._strict_tools_config,
+        )
 
         tool_registry = build_runtime_tool_registry(
-            profile=os.getenv("TOOLS_PROFILE", "minimal"),
+            profile=tool_config.profile,
             provider_manager=self._provider_manager,
-            namesake_strategy=os.getenv("TOOLS_NAMESAKE_STRATEGY", "skip"),
-            enable_echo_tool=_env_enabled("ENABLE_ECHO_TOOL"),
-            enable_exec_alias=_env_enabled("ENABLE_EXEC_TOOL"),
+            namesake_strategy=tool_config.namesake_strategy,
+            enable_echo_tool=tool_config.enable_echo_tool,
+            enable_exec_alias=tool_config.enable_exec_alias,
+            enable_tools=tool_config.enable_tools,
+            disable_tools=tool_config.disable_tools,
         )
 
         mcp_manager = MCPClientManager()
@@ -56,7 +65,7 @@ class RuntimeOrchestrator:
             mcp_aliases = register_mcp_tools(
                 registry=tool_registry,
                 tools=mcp_manager.list_tools(),
-                namesake_strategy=os.getenv("TOOLS_NAMESAKE_STRATEGY", "skip"),
+                namesake_strategy=tool_config.namesake_strategy,
             )
 
         plugin_host = PluginHost()
