@@ -12,6 +12,7 @@ ToolHandler = Callable[[AgentState], dict[str, Any]]
 class ToolManifest:
     name: str
     description: str
+    input_schema: dict[str, Any] | None = None
     risk_level: str = "low"
     timeout_seconds: int = 20
 

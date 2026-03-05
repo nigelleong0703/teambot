@@ -7,7 +7,7 @@
 `teambot-mvp` 是一个 TeamBot 风格后端 Agent MVP，核心是自研 ReAct 运行时：
 
 - 主循环：`reason -> act -> observe -> (loop | compose_reply)`
-- `reason` 是 planner + deterministic guards（输出 `final` 或 `action`）
+- `reason` 是 planner + deterministic guards（输出 native tool call 或 final text）
 - skills/tool 显式注册，统一到一个 action surface
 - 内部 runtime 采用 CoPaw 风格：tool profile + namesake 策略 + active-only skills + MCP 注入
 - 线程路由与事件幂等是硬约束
@@ -105,7 +105,7 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
   - `langchain_openai.ChatOpenAI`
   - `langchain_anthropic.ChatAnthropic`
 
-调用链：`reason planner -> provider_manager -> provider_client(langchain)`
+调用链：`reason planner -> provider_manager.invoke_role_tools -> provider_client(langchain bind_tools)`
 
 ## 7. 关键行为规则（当前实现）
 

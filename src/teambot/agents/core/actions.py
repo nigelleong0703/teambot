@@ -16,6 +16,7 @@ class ActionSpec:
     description: str
     source: str
     risk_level: str = "low"
+    input_schema: dict[str, Any] | None = None
 
 
 class ActionRegistry:
@@ -40,6 +41,9 @@ class ActionRegistry:
                 description=manifest.description,
                 source=manifest.source,
                 risk_level=manifest.risk_level,
+                input_schema=manifest.metadata.get("input_schema")
+                if isinstance(manifest.metadata, dict)
+                else None,
             )
 
     def has_action(self, name: str) -> bool:

@@ -40,6 +40,9 @@ class PluginHost(ActionPluginRegistry):
                 source="tool",
                 risk_level=manifest.risk_level,
                 timeout_seconds=manifest.timeout_seconds,
+                metadata={
+                    "input_schema": manifest.input_schema or {"type": "object", "properties": {}}
+                },
             )
             self._active_names.add(manifest.name)
 

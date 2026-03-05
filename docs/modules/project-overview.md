@@ -8,7 +8,7 @@ It is not a prompt-only chatbot wrapper. It is an execution runtime that combine
 - deterministic ReAct control flow
 - explicit skill/tool registration
 - policy-gated action execution
-- optional model-backed planning (`final` or `action`)
+- optional model-backed planning (native tool calls or direct final text)
 
 ## Current Feature Set
 

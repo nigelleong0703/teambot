@@ -178,6 +178,10 @@ class TeamBotCli:
                 print(self._as_text(payload.get("system_prompt")))
                 print("[debug] request_payload:")
                 print(self._as_text(payload.get("request_payload")))
+                tools = payload.get("tools")
+                if isinstance(tools, list) and tools:
+                    print("[debug] tools:")
+                    print(self._as_text(tools))
             role = payload.get("role")
             provider = payload.get("provider")
             model = payload.get("model")

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from teambot.agent_core.contracts import ModelInvocationResult
+from teambot.agent_core.contracts import ModelTextInvocationResult, ModelToolCall, ModelToolInvocationResult
 from teambot.agents.core.graph import build_graph
 from teambot.agents.skills.registry import SkillManifest, SkillRegistry
 from teambot.agents.tools.registry import ToolManifest, ToolRegistry
@@ -12,23 +12,42 @@ from teambot.domain.models import AgentState
 
 @dataclass
 class _PlannerStub:
-    data: dict[str, Any]
+    tool_calls: list[ModelToolCall]
+    text: str = ""
 
     def has_role(self, role: str) -> bool:
         return role == "agent_model"
 
-    def invoke_role_json(
+    def invoke_role_tools(
         self,
         *,
         role: str,
         system_prompt: str,
         payload: dict[str, Any],
-    ) -> ModelInvocationResult:
-        return ModelInvocationResult(
-            data=self.data,
+        tools: list[Any],
+    ) -> ModelToolInvocationResult:
+        return ModelToolInvocationResult(
+            text=self.text,
+            tool_calls=self.tool_calls,
             provider="stub",
             model="stub-model",
         )
+
+    def invoke_role_text(
+        self,
+        *,
+        role: str,
+        system_prompt: str,
+        user_message: str,
+    ) -> ModelTextInvocationResult:
+        return ModelTextInvocationResult(
+            text=self.text,
+            provider="stub",
+            model="stub-model",
+        )
+
+    def invoke_role_json(self, **_: Any):  # pragma: no cover - legacy compatibility
+        raise NotImplementedError
 
 
 def _state(text: str) -> AgentState:
@@ -62,11 +81,12 @@ def test_reason_uses_planner_action_decision() -> None:
         lambda _state: {"message": "time:ok"},
     )
     planner = _PlannerStub(
-        data={
-            "decision": "action",
-            "name": "get_current_time",
-            "input": {"timezone": "Asia/Kuala_Lumpur"},
-        }
+        tool_calls=[
+            ModelToolCall(
+                name="get_current_time",
+                arguments={"timezone": "Asia/Kuala_Lumpur"},
+            )
+        ]
     )
 
     graph = build_graph(skills, tool_registry=tools, planner=planner)
@@ -80,10 +100,8 @@ def test_reason_uses_planner_final_decision() -> None:
     skills = SkillRegistry()
     skills.register(SkillManifest(name="create_task", description="task"), lambda _s: {"message": "task"})
     planner = _PlannerStub(
-        data={
-            "decision": "final",
-            "message": "Hello from planner final",
-        }
+        tool_calls=[],
+        text="Hello from planner final",
     )
     graph = build_graph(skills, planner=planner)
     result = graph.invoke(_state("hello"))
