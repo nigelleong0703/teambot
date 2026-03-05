@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
-from .contracts import NormalizedResponse, ProviderEndpoint, ProviderInvocationError
-from .settings import (
+from ..base import NormalizedResponse, ProviderEndpoint, ProviderInvocationError
+from ..registry import (
     SUPPORTED_PROVIDERS,
     is_anthropic_provider,
     is_openai_compatible_provider,

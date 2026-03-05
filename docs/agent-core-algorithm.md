@@ -188,7 +188,7 @@ A runtime loop guard (`react_max_steps + 2`) still exists in `AgentCoreRuntime.i
 
 LangChain is used in provider client adapters, not in runtime control-flow files:
 
-- `src/teambot/agents/providers/langchain_client.py`
+- `src/teambot/agents/providers/clients/langchain.py`
   - `langchain_core.messages`
   - `langchain_openai.ChatOpenAI`
   - `langchain_anthropic.ChatAnthropic`
@@ -201,7 +201,7 @@ Runtime call chain for model reply generation:
 
 - Files:
   - `src/teambot/agents/providers/manager.py`
-  - `src/teambot/agents/providers/langchain_client.py`
+  - `src/teambot/agents/providers/clients/langchain.py`
 - If token callbacks are present, provider client attempts `model.stream(...)`.
 - If stream fails or yields no chunks, client falls back to `model.invoke(...)`.
 - Therefore visible UX can look like pseudo-streaming when upstream providers emit coarse chunks.
@@ -233,7 +233,7 @@ Update this document whenever any of the following changes:
  - `src/teambot/agents/skills/manager.py`
 - `src/teambot/agents/prompts/system_prompt.py`
 - `src/teambot/agents/providers/manager.py`
-- `src/teambot/agents/providers/langchain_client.py`
+- `src/teambot/agents/providers/clients/langchain.py`
 - `src/teambot/agents/core/state.py`
 - `src/teambot/agents/core/service.py`
 - `src/teambot/agents/react_agent.py`

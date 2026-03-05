@@ -101,7 +101,7 @@
 
 LangChain 只在 provider client 层使用，不在 core runtime 层：
 
-- `src/teambot/agents/providers/langchain_client.py`
+- `src/teambot/agents/providers/clients/langchain.py`
   - `langchain_core.messages`
   - `langchain_openai.ChatOpenAI`
   - `langchain_anthropic.ChatAnthropic`
