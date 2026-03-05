@@ -1,4 +1,4 @@
-# Agent Core Algorithm (Source of Truth)
+﻿# Agent Core Algorithm (Source of Truth)
 
 ## Purpose
 
@@ -8,10 +8,10 @@ Any change to routing, loop termination, tool execution, model prompt contract, 
 ## Scope
 
 - Runtime loop: `reason -> act -> observe -> (loop | compose_reply)`
-- Deterministic reason-stage routing rules
+- Reason-stage planning contract (`final` or `action`)
 - Tool execution and policy gate behavior
 - Built-in tool surface registration with profile + namesake strategy + MCP bridge
-- Model prompt contract used by `message_reply` tool (working-dir system prompt)
+- Model prompt contract used by planner in reason stage
 - Streaming behavior in provider client
 - Known design problems
 
@@ -41,25 +41,23 @@ flowchart TD
     N --> O["return reply"]
 ```
 
-## Reason Stage Priority (Deterministic)
+## Reason Stage Priority
 
 ```mermaid
 flowchart TD
     R0["reason_node"] --> R1{"react_step >= react_max_steps?"}
     R1 -- "yes" --> R1D["react_done=true, finish"]
     R1 -- "no" --> R2{"skill_output.next_skill exists?"}
-
-    R2 -- "yes" --> R3{"next_skill is registered action?"}
-    R3 -- "yes" --> R3A["selected_skill=next_skill"]
-    R3 -- "no" --> R3B{"default action exists?"}
-    R3B -- "yes" --> R3C["selected_skill=default action"]
-    R3B -- "no" --> R3D["react_done=true, finish"]
-
-    R2 -- "no" --> R4{"default action exists?"}
-    R4 -- "yes" --> R4A["selected_skill=default action"]
-    R4 -- "no" --> R5{"any action exists?"}
-    R5 -- "yes" --> R5A["selected_skill=first available"]
-    R5 -- "no" --> R5B["react_done=true, finish"]
+    R2 -- "yes" --> R2A["selected_skill=next_skill"]
+    R2 -- "no" --> R3{"deterministic direct route? (/todo, reaction, tools question)"}
+    R3 -- "yes" --> R3A["select action or finish directly"]
+    R3 -- "no" --> R4{"planner available?"}
+    R4 -- "yes" --> R5["invoke planner(JSON)"]
+    R5 --> R6{"decision"}
+    R6 -- "final" --> R6A["react_done=true, skill_output.message=final"]
+    R6 -- "action" --> R6B["selected_skill + skill_input"]
+    R6 -- "invalid" --> R6C["react_done=true, deterministic fallback"]
+    R4 -- "no" --> R7["react_done=true, deterministic fallback"]
 ```
 
 ## Stage-by-Stage Contract
@@ -76,13 +74,15 @@ flowchart TD
   - `skill_input={}`
   - `skill_output={}`
 
-### 2) Reason (Deterministic Router)
+### 2) Reason (Planner + Deterministic Guards)
 
 - File: `src/teambot/agents/core/router.py`
-- Model prompt: none.
-- Responsibility: pick next action or mark done using ReAct state only.
-- No event/command hardcoded routing (`reaction_added`, `/todo`) is applied in reason stage.
-- Important: runtime does **not** call a planner model here.
+- Model prompt: yes (when provider role is configured).
+- Responsibility:
+  - follow-up route (`next_skill`) from previous observation
+  - deterministic direct routes (`reaction_added`, `/todo`, tools question)
+  - planner decision (`final` or `action`) via JSON contract
+- Planner system prompt combines working-dir prompt + action catalog schema.
 
 ### 3) Act (Unified Action + Policy Gate)
 
@@ -104,37 +104,37 @@ flowchart TD
   - If denied (`high` risk not allowed), returns blocked result.
   - If allowed, invokes selected action through unified action registry.
 
-#### 3.1 `message_reply` model prompt source
+#### 2.1 Planner model prompt source
 
-Used only when provider manager exists and has `agent_model` role binding.
-System prompt is composed from working-directory markdown files in this order:
+Used when provider manager exists and has `agent_model` role binding.
+Base system prompt is composed from working-directory markdown files in this order:
 
 1. `AGENTS.md` (required)
 2. `SOUL.md` (optional)
 3. `PROFILE.md` (optional)
 
-#### 3.2 `message_reply` user message input
+#### 2.2 Planner input/output contract
 
-`message_reply` sends the latest user message text directly (`state.user_text`).
+- Planner input payload includes:
+  - `event_type`, `user_text`, `reaction`, `last_observation`
+- Planner output must be JSON:
+  - `{"decision":"final","message":"..."}`
+  - or `{"decision":"action","name":"<action>","input":{...}}`
+- If planner output is invalid, runtime safely falls back to final deterministic reply.
 
-#### 3.3 `message_reply` output handling
-
-- Model output is consumed as plain text (no JSON required).
-- If provider invocation fails or output is empty, tool falls back to deterministic local message.
-
-#### 3.4 Built-in tool surface profiles
+#### 3.1 Built-in tool surface profiles
 
 - Tool set is assembled by runtime profile (`TOOLS_PROFILE`) and namesake strategy (`TOOLS_NAMESAKE_STRATEGY`).
 - Supported profiles:
-  - `minimal`: `message_reply`
-  - `external_operation`: `message_reply` + `read_file`/`write_file`/`edit_file`/`execute_shell_command`/`browser_use`/`get_current_time`
+  - `minimal`: no tools
+  - `external_operation`: `read_file`/`write_file`/`edit_file`/`execute_shell_command`/`browser_use`/`get_current_time`
   - `full`: `external_operation` + `desktop_screenshot` + `send_file_to_user`
 - Optional debug toggles:
   - `ENABLE_ECHO_TOOL=true` -> `tool_echo`
   - `ENABLE_EXEC_TOOL=true` -> `exec_command` alias
 - Namesake strategy controls conflict behavior for runtime-injected tools (`skip|override|raise|rename`).
 
-#### 3.5 High-risk external-operation tools
+#### 3.2 High-risk external-operation tools
 
 - The following built-in tools are classified as `high` risk and policy-gated:
   - `write_file`
@@ -143,13 +143,13 @@ System prompt is composed from working-directory markdown files in this order:
   - `exec_command` (alias)
 - When blocked, runtime returns deterministic blocked output without invoking the underlying handler.
 
-#### 3.6 Skills runtime loading semantics
+#### 3.3 Skills runtime loading semantics
 
 - Runtime loads skills from `active_skills` only.
 - `ensure_skills_initialized()` does not auto-sync skills anymore; it warns when active set is empty.
 - Skill enable/sync lifecycle is explicit via skill manager operations.
 
-#### 3.7 MCP runtime injection
+#### 3.4 MCP runtime injection
 
 - MCP tools are loaded by MCP manager when `MCP_ENABLED=true`.
 - MCP tool manifests are bridged into the same `ToolRegistry` and action contract as builtin tools.
@@ -193,9 +193,9 @@ LangChain is used in provider client adapters, not in runtime control-flow files
   - `langchain_openai.ChatOpenAI`
   - `langchain_anthropic.ChatAnthropic`
 
-Runtime call chain for model reply generation:
+Runtime call chain for model planning:
 
-- `message_reply tool` -> `ProviderManager.invoke_role_text(...)` -> `LangChainProviderClient`
+- `reason planner` -> `ProviderManager.invoke_role_json(...)` -> `LangChainProviderClient`
 
 ## Streaming Behavior
 
@@ -208,8 +208,8 @@ Runtime call chain for model reply generation:
 
 ## Known Design Problems (Current)
 
-1. Reason routing is deterministic and rule-based; complex intent selection is limited.
-2. Conversation history is stored but not injected into `message_reply` model payload.
+1. Conversation history is stored but not injected into planner payload.
+2. Planner output quality depends on provider/model behavior and prompt discipline.
 3. `observe` marks done when `next_skill` is absent, which biases toward single-step completion.
 4. Streaming smoothness still depends on provider chunk granularity.
 
@@ -237,3 +237,4 @@ Update this document whenever any of the following changes:
 - `src/teambot/agents/core/state.py`
 - `src/teambot/agents/core/service.py`
 - `src/teambot/agents/react_agent.py`
+

@@ -8,6 +8,12 @@ import uuid
 from typing import Any
 
 from ..agents.core.service import AgentService
+from ..agents.tools.profiles import (
+    TOOL_PROFILE_EXTERNAL_OPERATION,
+    TOOL_PROFILE_FULL,
+    TOOL_PROFILE_MINIMAL,
+    describe_profiles,
+)
 from ..interfaces.bootstrap import build_agent_service
 from ..domain.models import InboundEvent
 
@@ -54,6 +60,9 @@ class TeamBotCli:
                 break
             if raw == "/help":
                 self._print_help()
+                continue
+            if raw == "/tools":
+                self._print_tools()
                 continue
             if raw == "/newthread":
                 self.thread_ts = self._new_thread_ts()
@@ -131,15 +140,33 @@ class TeamBotCli:
 
     @staticmethod
     def _print_help() -> None:
+        profile_descriptions = describe_profiles()
         print("TeamBot CLI mode")
         print("Commands:")
         print("  /help               show this help")
         print("  /exit               exit CLI")
         print("  /newthread          start a new thread id")
+        print("  /tools              list runtime enabled tools")
         print("  /stream on|off      toggle model token streaming")
         print("  /debug on|off       print prompt/payload and reasoning tokens (if available)")
         print("  /reaction <name>    send reaction_added event")
+        print("Profiles:")
+        print(f"  - {TOOL_PROFILE_MINIMAL}: {profile_descriptions[TOOL_PROFILE_MINIMAL]}")
+        print(
+            f"  - {TOOL_PROFILE_EXTERNAL_OPERATION}: "
+            f"{profile_descriptions[TOOL_PROFILE_EXTERNAL_OPERATION]}"
+        )
+        print(f"  - {TOOL_PROFILE_FULL}: {profile_descriptions[TOOL_PROFILE_FULL]}")
         print("Input any other text to send a message event")
+
+    def _print_tools(self) -> None:
+        manifests = self.service.tool_registry.list_manifests()
+        if not manifests:
+            print("[tools] no tools enabled")
+            return
+        print("[tools] enabled:")
+        for manifest in manifests:
+            print(f"- {manifest.name}: {manifest.description}")
 
     def _on_model_event(self, event: str, payload: dict[str, Any]) -> None:
         if not self._stream_model_tokens and not self._show_model_payload:
@@ -191,7 +218,17 @@ class TeamBotCli:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="TeamBot interactive CLI")
+    profile_descriptions = describe_profiles()
+    profile_help = (
+        "Override runtime tool profile for this CLI session.\n"
+        f"- {TOOL_PROFILE_MINIMAL}: {profile_descriptions[TOOL_PROFILE_MINIMAL]}\n"
+        f"- {TOOL_PROFILE_EXTERNAL_OPERATION}: {profile_descriptions[TOOL_PROFILE_EXTERNAL_OPERATION]}\n"
+        f"- {TOOL_PROFILE_FULL}: {profile_descriptions[TOOL_PROFILE_FULL]}"
+    )
+    parser = argparse.ArgumentParser(
+        description="TeamBot interactive CLI",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     parser.add_argument("--team-id", default="T1")
     parser.add_argument("--channel-id", default="C1")
     parser.add_argument("--thread-ts", default="1710000000.0001")
@@ -200,9 +237,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--show-model-payload", action="store_true")
     parser.add_argument(
         "--tools-profile",
-        choices=["minimal", "external_operation", "full"],
+        choices=[
+            TOOL_PROFILE_MINIMAL,
+            TOOL_PROFILE_EXTERNAL_OPERATION,
+            TOOL_PROFILE_FULL,
+        ],
         default=None,
-        help="Override runtime tool profile for this CLI session.",
+        help=profile_help,
     )
     parser.add_argument(
         "--tools-config",

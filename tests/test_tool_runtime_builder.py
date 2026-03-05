@@ -1,10 +1,10 @@
 from teambot.agents.tools.runtime_builder import build_runtime_tool_registry
 
 
-def test_minimal_profile_contains_message_reply_only() -> None:
+def test_minimal_profile_contains_no_tools() -> None:
     registry = build_runtime_tool_registry(profile="minimal", provider_manager=None)
     names = {manifest.name for manifest in registry.list_manifests()}
-    assert names == {"message_reply"}
+    assert names == set()
 
 
 def test_external_operation_profile_contains_external_tools() -> None:
@@ -14,7 +14,6 @@ def test_external_operation_profile_contains_external_tools() -> None:
     )
     names = {manifest.name for manifest in registry.list_manifests()}
     assert {
-        "message_reply",
         "read_file",
         "write_file",
         "edit_file",
@@ -36,8 +35,7 @@ def test_profile_allows_per_tool_overrides() -> None:
         profile="minimal",
         provider_manager=None,
         enable_tools=("get_current_time",),
-        disable_tools=("message_reply",),
+        disable_tools=(),
     )
     names = {manifest.name for manifest in registry.list_manifests()}
-    assert "message_reply" not in names
     assert "get_current_time" in names

@@ -14,6 +14,7 @@
 
 - Interactive CLI:
   - `PYTHONPATH=src python -m teambot.app.cli`
+  - inside CLI, run `/tools` to print runtime-enabled tools deterministically
 - ReAct debug runner:
   - `PYTHONPATH=src python -m teambot.app.react_loop_demo`
 - Provider smoke test:

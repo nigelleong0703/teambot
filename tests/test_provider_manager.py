@@ -66,7 +66,7 @@ def test_provider_manager_role_binding_and_failover() -> None:
             return _FakeClient(endpoint=endpoint, fail=True)
         return _FakeClient(
             endpoint=endpoint,
-            response_text='{"selected_skill": "message_reply"}',
+            response_text='{"selected_skill": "create_task"}',
         )
 
     manager = ProviderManager(
@@ -81,7 +81,7 @@ def test_provider_manager_role_binding_and_failover() -> None:
 
     assert result.provider == "openai-compatible"
     assert result.model == "agent-fallback"
-    assert result.data["selected_skill"] == "message_reply"
+    assert result.data["selected_skill"] == "create_task"
 
 
 def test_provider_manager_structured_attempt_errors() -> None:

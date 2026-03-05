@@ -19,6 +19,7 @@ def test_api_and_cli_use_bootstrap_composition_root() -> None:
     assert "from ..interfaces.bootstrap import build_agent_service" in cli_py
     assert "service = build_agent_service()" in main_py
     assert "service = build_agent_service(" in cli_py
+    assert "Profiles:" in cli_py
 
 
 @pytest.mark.asyncio
@@ -34,9 +35,9 @@ async def test_bootstrapped_service_handles_message_and_reaction() -> None:
         user_id="U1",
         text="/todo write docs",
     )
-    message_reply = await service.process_event(message_event)
-    assert message_reply.skill_name in {"create_task", "message_reply"}
-    assert message_reply.text
+    message_result = await service.process_event(message_event)
+    assert message_result.skill_name in {"create_task", ""}
+    assert message_result.text
 
     reaction_event = InboundEvent(
         event_id="evt-react-1",
@@ -48,6 +49,6 @@ async def test_bootstrapped_service_handles_message_and_reaction() -> None:
         reaction="eyes",
     )
     reaction_reply = await service.process_event(reaction_event)
-    assert reaction_reply.skill_name == "message_reply"
+    assert reaction_reply.skill_name in {"handle_reaction", ""}
     assert reaction_reply.text
 

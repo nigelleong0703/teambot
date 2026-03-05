@@ -33,9 +33,9 @@ def _manifest_names() -> set[str]:
     return {manifest.name for manifest in registry.list_manifests()}
 
 
-def test_default_tool_registry_keeps_message_reply_only() -> None:
+def test_default_tool_registry_keeps_minimal_empty() -> None:
     names = _manifest_names()
-    assert names == {"message_reply"}
+    assert names == set()
 
 
 def test_external_operation_tools_registration_and_risk_levels(
@@ -46,7 +46,6 @@ def test_external_operation_tools_registration_and_risk_levels(
     manifests = {manifest.name: manifest for manifest in registry.list_manifests()}
 
     expected = {
-        "message_reply",
         "read_file",
         "write_file",
         "edit_file",
@@ -111,7 +110,7 @@ def test_external_operation_tool_outputs_are_normalized_for_success_and_error(
 def test_high_risk_external_operation_tool_is_blocked_by_policy_gate(monkeypatch) -> None:
     monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
     skills = SkillRegistry()
-    skills.register(SkillManifest(name="message_reply", description=""), lambda _s: {"message": "ok"})
+    skills.register(SkillManifest(name="create_task", description=""), lambda _s: {"message": "ok"})
     tools = build_tool_registry(provider_manager=None)
 
     graph = build_graph(
@@ -133,11 +132,11 @@ def test_high_risk_external_operation_tool_is_blocked_by_policy_gate(monkeypatch
 
 def test_runtime_falls_back_when_follow_up_action_is_unavailable() -> None:
     skills = SkillRegistry()
-    skills.register(SkillManifest(name="message_reply", description=""), lambda _s: {"message": "fallback"})
+    skills.register(SkillManifest(name="create_task", description=""), lambda _s: {"message": "fallback"})
 
     graph = build_graph(skills)
     result = graph.invoke(_state("tool_that_is_not_registered"))
 
-    assert result["selected_skill"] == "message_reply"
-    assert result["reply_text"] == "fallback"
+    assert result["react_done"] is True
+    assert "could not continue" in result["reply_text"].lower()
 

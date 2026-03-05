@@ -28,7 +28,7 @@ def test_tool_action_uses_unified_contract() -> None:
     skills = SkillRegistry()
     tools = ToolRegistry()
 
-    skills.register(SkillManifest(name="message_reply", description=""), lambda _s: {"message": "ok"})
+    skills.register(SkillManifest(name="create_task", description=""), lambda _s: {"message": "ok"})
     tools.register(
         ToolManifest(name="tool_echo", description="echo", risk_level="low"),
         lambda state: {"message": f"echo:{state['user_text']}"},
@@ -50,7 +50,7 @@ def test_high_risk_action_is_blocked_by_policy_gate() -> None:
     skills = SkillRegistry()
     tools = ToolRegistry()
 
-    skills.register(SkillManifest(name="message_reply", description=""), lambda _s: {"message": "ok"})
+    skills.register(SkillManifest(name="create_task", description=""), lambda _s: {"message": "ok"})
     tools.register(
         ToolManifest(name="exec_command", description="danger", risk_level="high"),
         lambda _state: {"message": "should not execute"},
