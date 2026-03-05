@@ -5,7 +5,7 @@ def test_react_agent_bootstraps_runtime_with_minimal_profile(monkeypatch) -> Non
     monkeypatch.setenv("TOOLS_PROFILE", "minimal")
     agent = TeamBotReactAgent(provider_manager=None, dynamic_skills_dir=None)
     names = {manifest.name for manifest in agent.tool_registry.list_manifests()}
-    assert names == {"message_reply"}
+    assert names == set()
     assert agent.graph is not None
     assert agent.plugin_host is not None
 
@@ -14,13 +14,12 @@ def test_react_agent_reload_runtime_reflects_profile_change(monkeypatch) -> None
     monkeypatch.setenv("TOOLS_PROFILE", "minimal")
     agent = TeamBotReactAgent(provider_manager=None, dynamic_skills_dir=None)
     names_before = {manifest.name for manifest in agent.tool_registry.list_manifests()}
-    assert names_before == {"message_reply"}
+    assert names_before == set()
 
     monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
     agent.reload_runtime()
     names_after = {manifest.name for manifest in agent.tool_registry.list_manifests()}
     assert {
-        "message_reply",
         "read_file",
         "write_file",
         "edit_file",

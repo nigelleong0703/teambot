@@ -7,9 +7,8 @@
 `teambot-mvp` 是一个 TeamBot 风格后端 Agent MVP，核心是自研 ReAct 运行时：
 
 - 主循环：`reason -> act -> observe -> (loop | compose_reply)`
-- `reason` 是确定性规则路由（不是 model planner）
+- `reason` 是 planner + deterministic guards（输出 `final` 或 `action`）
 - skills/tool 显式注册，统一到一个 action surface
-- `message_reply` 是默认 message tool（可走模型，也可本地回退）
 - 内部 runtime 采用 CoPaw 风格：tool profile + namesake 策略 + active-only skills + MCP 注入
 - 线程路由与事件幂等是硬约束
 
@@ -76,7 +75,7 @@
 
 ## 5. Prompt 在哪里
 
-当前核心流程里，model prompt 在 message tool，而不是 reason 阶段：
+当前核心流程里，model prompt 在 reason/planner 阶段：
 
 - `src/teambot/agents/prompts/system_prompt.py`
   - 从工作目录读取 `AGENTS.md`（required）+ `SOUL.md` + `PROFILE.md`
@@ -84,7 +83,7 @@
   - 读取 `TOOLS_PROFILE` / `TOOLS_NAMESAKE_STRATEGY`
   - 调用 `runtime_builder` 组装 builtin tool surface
 - `src/teambot/agents/tools/catalog.py`
-  - `message_reply` 与 external-operation 工具定义（manifest + handler）
+  - external-operation 工具定义（manifest + handler）
 - `src/teambot/agents/tools/runtime_builder.py`
   - profile 选集 + namesake 冲突策略
 - `src/teambot/agents/tools/external_operation_tools.py`
@@ -93,7 +92,7 @@
 - `src/teambot/agents/mcp/manager.py` + `bridge.py`
   - MCP tools 加载并桥接到同一 tool registry
 
-`reason/observe/compose` 是确定性代码阶段，没有 LLM prompt。
+`observe/compose` 是确定性代码阶段，没有 LLM prompt。
 
 > 说明：`src/teambot/agents/planner.py` 与 `src/teambot/agents/model_adapter.py` 已移除，不再作为运行时路径或兼容层维护。
 
@@ -106,14 +105,13 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
   - `langchain_openai.ChatOpenAI`
   - `langchain_anthropic.ChatAnthropic`
 
-调用链：`message_reply tool -> provider_manager -> provider_client(langchain)`
+调用链：`reason planner -> provider_manager -> provider_client(langchain)`
 
 ## 7. 关键行为规则（当前实现）
 
-- `reason` 优先级：`max-step` -> `next_skill` -> `default action` -> `first available`
+- `reason` 优先级：`max-step` -> `next_skill` -> deterministic direct routes -> planner
 - `react_done=true` 会直接走 `compose_reply`
 - `observe` 阶段若无 `next_skill`，默认结束
-- `message_reply` 是 low-risk message tool（不是 skill）
 - tool surface 由 `TOOLS_PROFILE` 决定（`minimal|external_operation|full`）
 - CLI 支持 `--tools-profile` 与 `--tools-config <json>` 做 session 级覆盖（profile + per-tool enable/disable）
 - skills runtime 只加载 active_skills；不会自动 sync 初始化
@@ -125,6 +123,7 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 
 - API 启动：`PYTHONPATH=src uvicorn teambot.app.main:app --reload`
 - CLI：`PYTHONPATH=src python -m teambot.app.cli`
+- CLI 运行时查看工具：在 CLI 输入 `/tools`
 - ReAct 全链路调试：`PYTHONPATH=src python -m teambot.app.react_loop_demo`
 - Provider 冒烟：`PYTHONPATH=src python -m teambot.app.provider_smoke_test --pretty`
 

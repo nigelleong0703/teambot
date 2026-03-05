@@ -11,12 +11,11 @@ from teambot.agents.tools.profiles import (
 
 
 def test_resolve_tool_profile_minimal() -> None:
-    assert resolve_tool_profile(TOOL_PROFILE_MINIMAL) == {"message_reply"}
+    assert resolve_tool_profile(TOOL_PROFILE_MINIMAL) == set()
 
 
 def test_resolve_tool_profile_external_operation() -> None:
     names = resolve_tool_profile(TOOL_PROFILE_EXTERNAL_OPERATION)
-    assert "message_reply" in names
     assert "read_file" in names
     assert "execute_shell_command" in names
 

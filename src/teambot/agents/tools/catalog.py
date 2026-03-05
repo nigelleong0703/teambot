@@ -1,12 +1,7 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-import json
-from typing import Any
-
-from ..providers.manager import ROLE_AGENT
 from ...agent_core.contracts import ModelRoleInvoker
 from ...domain.models import AgentState
-from ..prompts import build_system_prompt_from_working_dir
 from .external_operation_tools import (
     browser_use,
     desktop_screenshot,
@@ -20,56 +15,6 @@ from .external_operation_tools import (
 from .registry import ToolHandler, ToolManifest
 
 
-def _deterministic_message_reply(state: AgentState) -> dict[str, str]:
-    text = state.get("user_text", "").strip()
-    return {
-        "message": (
-            "Acknowledged. The MVP currently replies using deterministic thread routing."
-            f"\n\nYou said: {text}"
-        ),
-    }
-
-
-def _extract_message_text(raw_text: str) -> str:
-    text = raw_text.strip()
-    if not text:
-        return ""
-    if text.startswith("{") and text.endswith("}"):
-        try:
-            parsed = json.loads(text)
-        except Exception:
-            return text
-        if isinstance(parsed, dict):
-            msg = parsed.get("message")
-            if isinstance(msg, str) and msg.strip():
-                return msg.strip()
-    return text
-
-
-class MessageReplyTool:
-    def __init__(self, provider_manager: ModelRoleInvoker | None) -> None:
-        self._provider_manager = provider_manager
-
-    def __call__(self, state: AgentState) -> dict[str, str]:
-        manager = self._provider_manager
-        if manager is None or not manager.has_role(ROLE_AGENT):
-            return _deterministic_message_reply(state)
-
-        try:
-            result = manager.invoke_role_text(
-                role=ROLE_AGENT,
-                system_prompt=build_system_prompt_from_working_dir(),
-                user_message=str(state.get("user_text", "")).strip(),
-            )
-        except Exception:
-            return _deterministic_message_reply(state)
-
-        message = _extract_message_text(result.text)
-        if message:
-            return {"message": message}
-        return _deterministic_message_reply(state)
-
-
 def echo_tool(state: AgentState) -> dict[str, str]:
     return {"message": f"tool_echo:{state.get('user_text', '')}"}
 
@@ -77,15 +22,9 @@ def echo_tool(state: AgentState) -> dict[str, str]:
 def builtin_tool_definitions(
     provider_manager: ModelRoleInvoker | None,
 ) -> dict[str, tuple[ToolManifest, ToolHandler]]:
+    # provider_manager reserved for future provider-native tool integrations.
+    _ = provider_manager
     return {
-        "message_reply": (
-            ToolManifest(
-                name="message_reply",
-                description="Default conversational message tool.",
-                risk_level="low",
-            ),
-            MessageReplyTool(provider_manager),
-        ),
         "read_file": (
             ToolManifest(
                 name="read_file",
@@ -167,4 +106,3 @@ def builtin_tool_definitions(
             execute_shell_command,
         ),
     }
-

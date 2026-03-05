@@ -79,6 +79,7 @@ class TeamBotReactAgent:
             tool_registry=self.tool_registry,
             plugin_registry=self.plugin_host,
             policy_gate=self.policy_gate,
+            planner=self.provider_manager,
         )
 
     def invoke(self, state: AgentState) -> AgentState:

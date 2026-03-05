@@ -45,6 +45,9 @@ class ActionRegistry:
     def has_action(self, name: str) -> bool:
         return name in self._actions
 
+    def list_actions(self) -> list[ActionSpec]:
+        return list(self._actions.values())
+
     def list_manifests(self) -> list[SkillManifest]:
         return [
             SkillManifest(name=a.name, description=a.description)

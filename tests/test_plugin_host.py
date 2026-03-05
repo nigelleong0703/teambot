@@ -27,7 +27,7 @@ def test_plugin_host_unifies_skill_and_tool_actions() -> None:
     skills = SkillRegistry()
     tools = ToolRegistry()
     skills.register(
-        SkillManifest(name="message_reply", description="reply"),
+        SkillManifest(name="create_task", description="reply"),
         lambda _s: {"message": "ok"},
     )
     tools.register(
@@ -40,7 +40,7 @@ def test_plugin_host_unifies_skill_and_tool_actions() -> None:
     host.bind_tool_registry(tools)
 
     names = {action.name for action in host.list_actions()}
-    assert {"message_reply", "tool_echo"} <= names
+    assert {"create_task", "tool_echo"} <= names
 
     result = host.invoke("tool_echo", _state())
     assert result["message"] == "echo:hello"
@@ -51,15 +51,15 @@ def test_plugin_host_unifies_skill_and_tool_actions() -> None:
 def test_plugin_host_activation_toggle() -> None:
     skills = SkillRegistry()
     skills.register(
-        SkillManifest(name="message_reply", description="reply"),
+        SkillManifest(name="create_task", description="reply"),
         lambda _s: {"message": "ok"},
     )
     host = PluginHost()
     host.bind_skill_registry(skills)
 
-    assert host.has_action("message_reply") is True
-    assert host.deactivate("message_reply") is True
-    assert host.has_action("message_reply") is False
-    assert host.activate("message_reply") is True
-    assert host.has_action("message_reply") is True
+    assert host.has_action("create_task") is True
+    assert host.deactivate("create_task") is True
+    assert host.has_action("create_task") is False
+    assert host.activate("create_task") is True
+    assert host.has_action("create_task") is True
 

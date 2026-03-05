@@ -17,7 +17,6 @@ def _ordered_profile_names(
 ) -> list[str]:
     # Keep deterministic order for stable manifests/tests.
     order = [
-        "message_reply",
         "read_file",
         "write_file",
         "edit_file",
