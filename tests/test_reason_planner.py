@@ -1,12 +1,12 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
-from teambot.agent_core.contracts import ModelTextInvocationResult, ModelToolCall, ModelToolInvocationResult
-from teambot.agents.core.graph import build_graph
-from teambot.agents.skills.registry import SkillManifest, SkillRegistry
-from teambot.agents.tools.registry import ToolManifest, ToolRegistry
+from teambot.contracts.contracts import ModelTextInvocationResult, ModelToolCall, ModelToolInvocationResult
+from teambot.agent.graph import build_graph
+from teambot.skills.registry import SkillManifest, SkillRegistry
+from teambot.actions.tools.registry import ToolManifest, ToolRegistry
 from teambot.domain.models import AgentState
 
 
@@ -108,3 +108,4 @@ def test_reason_uses_planner_final_decision() -> None:
 
     assert result["react_done"] is True
     assert result["reply_text"] == "Hello from planner final"
+

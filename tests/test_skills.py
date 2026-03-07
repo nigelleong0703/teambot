@@ -1,7 +1,7 @@
 ﻿import pytest
 
 from teambot.domain.models import InboundEvent
-from teambot.agents.core.service import AgentService
+from teambot.agent.service import AgentService
 
 
 @pytest.mark.asyncio
@@ -40,4 +40,5 @@ async def test_reaction_event_uses_handle_reaction_skill() -> None:
 
     assert reply.skill_name in {"handle_reaction", ""}
     assert reply.text
+
 

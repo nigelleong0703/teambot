@@ -13,7 +13,7 @@ It is not a prompt-only chatbot wrapper. It is an execution runtime that combine
 ## Current Feature Set
 
 - ReAct runtime loop: `reason -> act -> observe -> compose_reply`
-- Runtime owner: `TeamBotReactAgent`
+- Runtime owner: `TeamBotRuntime`
 - Tool runtime profiles:
   - `minimal`
   - `external_operation`
@@ -29,6 +29,8 @@ It is not a prompt-only chatbot wrapper. It is an execution runtime that combine
   - active-skills runtime loading
 - Optional MCP bridge into the same action surface
 - Event idempotency and deterministic thread routing
+- Runtime transcript event stream for CLI/TUI clients
+- Textual TUI with Claude-like single-column workbench rendering
 
 ## Typical Use Cases
 
@@ -39,11 +41,12 @@ It is not a prompt-only chatbot wrapper. It is an execution runtime that combine
 
 ## High-Level Module Map
 
-- Runtime core: `src/teambot/agents/react_agent.py`
-- ReAct internals: `src/teambot/agents/core/*`
-- Tools: `src/teambot/agents/tools/*`
-- Skills: `src/teambot/agents/skills/*`
-- MCP: `src/teambot/agents/mcp/*`
-- Providers: `src/teambot/agents/providers/*`
+- Runtime core: `src/teambot/agent/runtime.py`
+- ReAct internals: `src/teambot/agent/*`
+- Tools: `src/teambot/actions/tools/*`
+- Skills: `src/teambot/skills/*`
+- MCP: `src/teambot/mcp/*`
+- Providers: `src/teambot/providers/*`
 - API entry: `src/teambot/app/main.py`
 - CLI entry: `src/teambot/app/cli.py`
+- TUI entry: `src/teambot/app/tui.py`

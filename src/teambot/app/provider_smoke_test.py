@@ -5,12 +5,12 @@ import json
 import sys
 from typing import Any
 
-from ..agents.providers.manager import (
+from ..providers.manager import (
     ROLE_AGENT,
     ProviderInvocationError,
     build_default_provider_manager,
 )
-from ..agents.prompts import build_system_prompt_from_working_dir
+from ..agent.prompts import build_system_prompt_from_working_dir
 
 
 def parse_args() -> argparse.Namespace:

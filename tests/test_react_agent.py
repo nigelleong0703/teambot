@@ -1,18 +1,18 @@
-from teambot.agents.react_agent import TeamBotReactAgent
+from teambot.agent.runtime import TeamBotRuntime
 
 
-def test_react_agent_bootstraps_runtime_with_minimal_profile(monkeypatch) -> None:
+def test_runtime_bootstraps_with_minimal_profile(monkeypatch) -> None:
     monkeypatch.setenv("TOOLS_PROFILE", "minimal")
-    agent = TeamBotReactAgent(provider_manager=None, dynamic_skills_dir=None)
+    agent = TeamBotRuntime(provider_manager=None, dynamic_skills_dir=None)
     names = {manifest.name for manifest in agent.tool_registry.list_manifests()}
     assert names == set()
     assert agent.graph is not None
     assert agent.plugin_host is not None
 
 
-def test_react_agent_reload_runtime_reflects_profile_change(monkeypatch) -> None:
+def test_runtime_reload_reflects_profile_change(monkeypatch) -> None:
     monkeypatch.setenv("TOOLS_PROFILE", "minimal")
-    agent = TeamBotReactAgent(provider_manager=None, dynamic_skills_dir=None)
+    agent = TeamBotRuntime(provider_manager=None, dynamic_skills_dir=None)
     names_before = {manifest.name for manifest in agent.tool_registry.list_manifests()}
     assert names_before == set()
 

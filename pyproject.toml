@@ -14,7 +14,9 @@ dependencies = [
   "langchain-core>=0.3.0",
   "langchain-openai>=0.2.0",
   "langchain-anthropic>=0.2.0",
+  "python-dotenv>=1.0.1",
   "pydantic>=2.8.0",
+  "textual>=0.86.1",
   "typing-extensions>=4.11.0"
 ]
 
@@ -32,3 +34,4 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+asyncio_default_fixture_loop_scope = "function"

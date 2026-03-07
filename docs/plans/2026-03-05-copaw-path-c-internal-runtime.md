@@ -109,7 +109,7 @@ git commit -m "refactor: build runtime tool registry from explicit profiles"
 ### Task 3: Align Skills Lifecycle to Active-Only Runtime Loading
 
 **Files:**
-- Modify: `src/teambot/agents/skills/manager.py`
+- Modify: `src/teambot/skills/manager.py`
 - Modify: `src/teambot/agents/core/service.py`
 - Test: `tests/test_skill_runtime_lifecycle.py`
 
@@ -143,16 +143,16 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add src/teambot/agents/skills/manager.py src/teambot/agents/core/service.py tests/test_skill_runtime_lifecycle.py
+git add src/teambot/skills/manager.py src/teambot/agents/core/service.py tests/test_skill_runtime_lifecycle.py
 git commit -m "refactor: enforce active-only skill loading in runtime"
 ```
 
 ### Task 4: Add MCP Manager and Registry Bridge
 
 **Files:**
-- Create: `src/teambot/agents/mcp/config.py`
-- Create: `src/teambot/agents/mcp/manager.py`
-- Create: `src/teambot/agents/mcp/bridge.py`
+- Create: `src/teambot/mcp/config.py`
+- Create: `src/teambot/mcp/manager.py`
+- Create: `src/teambot/mcp/bridge.py`
 - Test: `tests/test_mcp_runtime_bridge.py`
 
 **Step 1: Write the failing test**
@@ -189,7 +189,7 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add src/teambot/agents/mcp/config.py src/teambot/agents/mcp/manager.py src/teambot/agents/mcp/bridge.py tests/test_mcp_runtime_bridge.py
+git add src/teambot/mcp/config.py src/teambot/mcp/manager.py src/teambot/mcp/bridge.py tests/test_mcp_runtime_bridge.py
 git commit -m "feat: add mcp runtime manager and tool bridge"
 ```
 
@@ -198,7 +198,7 @@ git commit -m "feat: add mcp runtime manager and tool bridge"
 **Files:**
 - Create: `src/teambot/agents/runtime/orchestrator.py`
 - Modify: `src/teambot/agents/core/service.py`
-- Modify: `src/teambot/interfaces/bootstrap.py`
+- Modify: `src/teambot/app/bootstrap.py`
 - Test: `tests/test_runtime_orchestrator.py`
 
 **Step 1: Write the failing test**
@@ -238,7 +238,7 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add src/teambot/agents/runtime/orchestrator.py src/teambot/agents/core/service.py src/teambot/interfaces/bootstrap.py tests/test_runtime_orchestrator.py
+git add src/teambot/agents/runtime/orchestrator.py src/teambot/agents/core/service.py src/teambot/app/bootstrap.py tests/test_runtime_orchestrator.py
 git commit -m "refactor: centralize runtime assembly in orchestrator"
 ```
 

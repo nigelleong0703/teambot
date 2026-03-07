@@ -1,14 +1,14 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pytest
 
-from teambot.agents.providers.config import load_provider_settings_from_env
-from teambot.agents.providers.registry import (
+from teambot.providers.config import load_provider_settings_from_env
+from teambot.providers.registry import (
     default_base_url_for_provider,
     is_supported_provider,
     normalize_provider_name,
 )
-from teambot.agents.providers.base import ProviderConfigError
+from teambot.providers.base import ProviderConfigError
 
 
 def test_provider_name_normalization() -> None:
@@ -50,3 +50,4 @@ def test_default_base_url_only_for_openai_compat() -> None:
         == "https://api.openai.com/v1"
     )
     assert default_base_url_for_provider("anthropic") is None
+

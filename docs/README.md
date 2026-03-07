@@ -13,7 +13,7 @@ System-managed paths (do not reorganize here):
 2. `architecture-boundaries.md`
    - Dependency boundaries and allowed direction.
 3. `agent-core-algorithm.md`
-   - Runtime algorithm source of truth.
+   - Runtime algorithm source of truth (`reason.py`, `execution.py`, `graph.py`, skill-context injection, runtime events).
 
 ## Modules (project details)
 
@@ -23,6 +23,28 @@ System-managed paths (do not reorganize here):
   - Environment setup, `.env` groups, run commands, and test commands.
 - `modules/api-and-debug.md`
   - API endpoint list and local debug utilities.
+- `modules/post-change-next-steps.md`
+  - Practical next-step execution plan after major runtime changes.
+
+Current runtime terminology baseline:
+- `agent`: the `agent/` package contains the ReAct loop, runtime owner, prompt assembly, and application service
+- Canonical target structure is `agent/actions/providers/skills/mcp/contracts/domain/app`
+- `tools`: executable model-callable operations
+- `event_handlers`: deterministic runtime handlers (e.g. reaction and `/todo`)
+- `skills`: active skill packs loaded as context for the reasoner, not executable actions
+- CLI uses a single transcript view by default:
+  - `Task / Thinking / Tool / Result / Final`
+  - `debug` and `stream` are visibility controls, not user-facing modes
+  - when provider streaming is available, the CLI streams reasoning into `Thinking` and answer tokens into `Final (live)`
+  - if the final reply text already streamed live, the `Final` section avoids printing the same answer twice
+- CLI/TUI slash commands are defined centrally in `app/slash_commands.py`; `/tools` is intentionally excluded from the user-facing slash surface
+- `RuntimeEvent`: domain-level event contract for step-by-step agent transcript rendering
+- `AgentService.stream_event(...)`: async runtime-event stream for TUI/CLI style clients, while `process_event(...)` remains the compatibility reply API
+- CLI now consumes `stream_event(...)` as its primary transcript source and renders step blocks such as `Step 1 · Thinking`, `Step 1 · Tool`, `Step 1 · Result`, `Step 2 · Final`
+- `RuntimeEvent` now includes live delta events:
+  - `thinking_delta`
+  - `final_delta`
+- `app/tui.py`: Textual-based TUI entrypoint built on the same `stream_event(...)` contract and renders a Claude-like single-column workbench with subdued tool/result summaries and a prominent final answer
 
 ## Reference Docs
 

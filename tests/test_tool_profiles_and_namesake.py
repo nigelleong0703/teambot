@@ -1,8 +1,8 @@
-from teambot.agents.tools.namesake import (
+﻿from teambot.actions.tools.namesake import (
     apply_namesake_strategy,
     rename_for_namesake,
 )
-from teambot.agents.tools.profiles import (
+from teambot.actions.tools.profiles import (
     TOOL_PROFILE_EXTERNAL_OPERATION,
     TOOL_PROFILE_FULL,
     TOOL_PROFILE_MINIMAL,
@@ -60,3 +60,4 @@ def test_namesake_rename_appends_suffix() -> None:
         incoming_name="read_file",
         namespace="mcp",
     ) == "read_file__mcp_2"
+

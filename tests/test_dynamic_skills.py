@@ -1,6 +1,6 @@
 ﻿from pathlib import Path
 
-from teambot.agents.skills import build_registry
+from teambot.skills import build_registry
 from teambot.domain.models import AgentState
 
 
@@ -44,4 +44,5 @@ def test_dynamic_skill_plugin_is_loaded_and_invokable(tmp_path: Path) -> None:
     output = registry.invoke("echo_dynamic", _state("hello dynamic"))
 
     assert output["message"] == "echo:hello dynamic"
+
 
