@@ -1,19 +1,19 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Callable
 
 import pytest
 
-from teambot.agents.providers.base import (
+from teambot.providers.base import (
     NormalizedResponse,
     ProviderEndpoint,
     ProviderInvocationError,
     ProviderRoleBinding,
     ProviderSettings,
 )
-from teambot.agents.providers.clients.langchain import normalize_chat_response
-from teambot.agents.providers.manager import (
+from teambot.providers.clients.langchain import normalize_chat_response
+from teambot.providers.manager import (
     ProviderClientRegistry,
     ProviderManager,
     extract_json_object,
@@ -254,3 +254,4 @@ def test_provider_manager_tool_invocation() -> None:
     assert result.tool_calls
     assert result.tool_calls[0].name == "get_current_time"
     assert result.tool_calls[0].arguments["timezone"] == "Asia/Kuala_Lumpur"
+

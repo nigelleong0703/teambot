@@ -1,7 +1,7 @@
-﻿from teambot.agents.skills.registry import SkillManifest, SkillRegistry
-from teambot.agents.tools.registry import ToolManifest, ToolRegistry
+﻿from teambot.skills.registry import SkillManifest, SkillRegistry
+from teambot.actions.tools.registry import ToolManifest, ToolRegistry
 from teambot.domain.models import AgentState
-from teambot.plugins.registry import PluginHost
+from teambot.actions.registry import PluginHost
 
 
 def _state() -> AgentState:
@@ -62,4 +62,5 @@ def test_plugin_host_activation_toggle() -> None:
     assert host.has_action("create_task") is False
     assert host.activate("create_task") is True
     assert host.has_action("create_task") is True
+
 

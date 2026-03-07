@@ -51,7 +51,7 @@ This design adopts **Path C**: mirror CoPaw internal mechanisms for tools, skill
 - Keep implementation files (e.g. `external_operation_tools.py`) separate from registration logic.
 
 ### 3.3 Skills Modules (active-only runtime)
-- Keep and align `src/teambot/agents/skills/manager.py` semantics:
+- Keep and align `src/teambot/skills/manager.py` semantics:
   - `builtin`: repo baseline packs
   - `customized`: workspace customization
   - `active`: runtime-loaded set
@@ -59,11 +59,11 @@ This design adopts **Path C**: mirror CoPaw internal mechanisms for tools, skill
 - Sync functions remain explicit operations; startup should not silently mutate active state.
 
 ### 3.4 MCP Modules
-- Add `src/teambot/agents/mcp/manager.py`
+- Add `src/teambot/mcp/manager.py`
   - load config, open clients, reload, close
-- Add `src/teambot/agents/mcp/bridge.py`
+- Add `src/teambot/mcp/bridge.py`
   - map MCP tools into `ToolRegistry` manifests/handlers
-- Add `src/teambot/agents/mcp/config.py`
+- Add `src/teambot/mcp/config.py`
   - parse and validate MCP env/config payloads
 
 ## 4. Runtime Flow (After Refactor)

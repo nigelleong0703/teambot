@@ -47,6 +47,28 @@ class OutboundReply(BaseModel):
     reply_target: ReplyTarget
     text: str
     skill_name: str
+    reasoning_note: str = ""
+    execution_trace: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RuntimeEvent(BaseModel):
+    run_id: str
+    step: int = 0
+    event_type: Literal[
+        "task_started",
+        "thinking",
+        "thinking_delta",
+        "tool_call",
+        "tool_result",
+        "final_delta",
+        "final_text",
+        "run_completed",
+    ]
+    text: str = ""
+    action_name: str = ""
+    action_input: dict[str, Any] = Field(default_factory=dict)
+    observation: str = ""
+    blocked: bool = False
 
 
 class AgentState(TypedDict):
@@ -59,8 +81,11 @@ class AgentState(TypedDict):
     react_done: bool
     react_notes: list[str]
     reasoning_note: str
+    selected_action: str
     selected_skill: str
+    action_input: dict[str, Any]
     skill_input: dict[str, Any]
+    action_output: dict[str, Any]
     skill_output: dict[str, Any]
     execution_trace: list[dict[str, Any]]
     reply_text: str

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import json
@@ -7,9 +7,9 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from ..agents.providers.manager import ROLE_AGENT
-from ..agents.core.state import build_initial_state
-from ..interfaces.bootstrap import build_agent_service
+from ..providers.manager import ROLE_AGENT
+from ..agent.state import build_initial_state
+from .bootstrap import build_agent_service
 from ..domain.models import InboundEvent, ReplyTarget
 from ..domain.store import make_conversation_key
 
@@ -768,4 +768,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 

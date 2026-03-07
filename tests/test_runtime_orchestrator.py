@@ -1,4 +1,4 @@
-from teambot.agents.runtime.orchestrator import RuntimeOrchestrator
+﻿from teambot.agent.orchestrator import RuntimeOrchestrator
 
 
 def test_orchestrator_builds_runtime_components() -> None:
@@ -6,8 +6,8 @@ def test_orchestrator_builds_runtime_components() -> None:
     bundle = orchestrator.build()
     assert bundle.skill_registry is not None
     assert bundle.tool_registry is not None
-    assert bundle.plugin_host is not None
     assert bundle.mcp_manager is not None
+    assert not hasattr(bundle, "plugin_host")
 
 
 def test_orchestrator_injects_mcp_tools(monkeypatch) -> None:
@@ -21,3 +21,4 @@ def test_orchestrator_injects_mcp_tools(monkeypatch) -> None:
     bundle = orchestrator.build()
     names = {manifest.name for manifest in bundle.tool_registry.list_manifests()}
     assert "mcp_lookup" in names
+

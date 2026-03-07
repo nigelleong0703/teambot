@@ -1,9 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from fastapi import FastAPI
 
-from ..agents.skills.manager import SkillService, list_available_skills
-from ..interfaces.bootstrap import build_agent_service
+from ..skills.manager import SkillService, list_available_skills
+from .bootstrap import build_agent_service
 from ..domain.models import InboundEvent
 
 app = FastAPI(title="TeamBot Agent Core MVP")
@@ -89,4 +89,5 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
+
 

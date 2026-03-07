@@ -1,11 +1,14 @@
-﻿from teambot.agents.core.graph import build_graph
-from teambot.agents.core.policy import ExecutionPolicyGate
-from teambot.agents.skills.registry import SkillManifest, SkillRegistry
-from teambot.agents.tools.registry import ToolManifest, ToolRegistry
+﻿from __future__ import annotations
+
+from teambot.contracts.contracts import ModelToolCall, ModelToolInvocationResult
+from teambot.agent.graph import build_graph
+from teambot.agent.policy import ExecutionPolicyGate
+from teambot.skills.registry import SkillManifest, SkillRegistry
+from teambot.actions.tools.registry import ToolManifest, ToolRegistry
 from teambot.domain.models import AgentState
 
 
-def _state(next_skill: str) -> AgentState:
+def _state() -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
         "event_type": "message",
@@ -18,10 +21,29 @@ def _state(next_skill: str) -> AgentState:
         "reasoning_note": "",
         "selected_skill": "",
         "skill_input": {},
-        "skill_output": {"next_skill": next_skill},
+        "skill_output": {},
         "execution_trace": [],
         "reply_text": "",
     }
+
+
+class _Planner:
+    def __init__(self, action_name: str) -> None:
+        self.action_name = action_name
+
+    def has_role(self, role: str) -> bool:
+        return role == "agent_model"
+
+    def invoke_role_tools(self, *, role: str, system_prompt: str, payload: dict, tools: list):
+        return ModelToolInvocationResult(
+            text="",
+            tool_calls=[ModelToolCall(name=self.action_name, arguments={})],
+            provider="stub",
+            model="stub",
+        )
+
+    def invoke_role_text(self, *, role: str, system_prompt: str, user_message: str):
+        raise AssertionError("unexpected text-only path")
 
 
 def test_tool_action_uses_unified_contract() -> None:
@@ -37,8 +59,9 @@ def test_tool_action_uses_unified_contract() -> None:
     graph = build_graph(
         skills,
         tool_registry=tools,
+        planner=_Planner("tool_echo"),
     )
-    result = graph.invoke(_state("tool_echo"))
+    result = graph.invoke(_state())
 
     assert result["selected_skill"] == "tool_echo"
     assert result["reply_text"] == "echo:run tool"
@@ -59,9 +82,10 @@ def test_high_risk_action_is_blocked_by_policy_gate() -> None:
     graph = build_graph(
         skills,
         tool_registry=tools,
+        planner=_Planner("exec_command"),
         policy_gate=ExecutionPolicyGate(allow_high_risk=False),
     )
-    result = graph.invoke(_state("exec_command"))
+    result = graph.invoke(_state())
 
     assert result["selected_skill"] == "exec_command"
     assert "High-risk action blocked by policy" in result["reply_text"]

@@ -1,31 +1,56 @@
 ﻿from __future__ import annotations
 
 from pathlib import Path
+from urllib.error import URLError
 
-from teambot.agents.core.graph import build_graph
-from teambot.agents.core.policy import ExecutionPolicyGate
-from teambot.agents.skills.registry import SkillManifest, SkillRegistry
-from teambot.agents.tools import build_tool_registry
+from teambot.contracts.contracts import ModelToolCall, ModelToolInvocationResult
+from teambot.agent.graph import build_graph
+from teambot.agent.policy import ExecutionPolicyGate
+from teambot.skills.registry import SkillManifest, SkillRegistry
+from teambot.actions.tools import build_tool_registry
 from teambot.domain.models import AgentState
 
 
-def _state(next_skill: str, *, skill_input: dict[str, object] | None = None) -> AgentState:
+def _state(*, user_text: str = "hello") -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
         "event_type": "message",
-        "user_text": "hello",
+        "user_text": user_text,
         "reaction": None,
         "react_step": 0,
         "react_max_steps": 3,
         "react_done": False,
         "react_notes": [],
         "reasoning_note": "",
+        "selected_action": "",
         "selected_skill": "",
-        "skill_input": skill_input or {},
-        "skill_output": {"next_skill": next_skill},
+        "action_input": {},
+        "skill_input": {},
+        "action_output": {},
+        "skill_output": {},
         "execution_trace": [],
         "reply_text": "",
     }
+
+
+class _Planner:
+    def __init__(self, action_name: str, arguments: dict[str, object] | None = None) -> None:
+        self.action_name = action_name
+        self.arguments = arguments or {}
+
+    def has_role(self, role: str) -> bool:
+        return role == "agent_model"
+
+    def invoke_role_tools(self, *, role: str, system_prompt: str, payload: dict, tools: list):
+        return ModelToolInvocationResult(
+            text="",
+            tool_calls=[ModelToolCall(name=self.action_name, arguments=self.arguments)],
+            provider="stub",
+            model="stub",
+        )
+
+    def invoke_role_text(self, *, role: str, system_prompt: str, user_message: str):
+        raise AssertionError("unexpected text-only path")
 
 
 def _manifest_names() -> set[str]:
@@ -75,10 +100,7 @@ def test_external_operation_tool_outputs_are_normalized_for_success_and_error(
 
     write_result = registry.invoke(
         "write_file",
-        _state(
-            "write_file",
-            skill_input={"file_path": str(file_path), "content": "alpha\nbeta"},
-        ),
+        {**_state(), "action_input": {"file_path": str(file_path), "content": "alpha\nbeta"}},
     )
     assert isinstance(write_result, dict)
     assert "message" in write_result
@@ -86,10 +108,10 @@ def test_external_operation_tool_outputs_are_normalized_for_success_and_error(
 
     read_result = registry.invoke(
         "read_file",
-        _state(
-            "read_file",
-            skill_input={"file_path": str(file_path), "start_line": 1, "end_line": 1},
-        ),
+        {
+            **_state(),
+            "action_input": {"file_path": str(file_path), "start_line": 1, "end_line": 1},
+        },
     )
     assert isinstance(read_result, dict)
     assert "message" in read_result
@@ -97,14 +119,34 @@ def test_external_operation_tool_outputs_are_normalized_for_success_and_error(
 
     error_result = registry.invoke(
         "edit_file",
-        _state(
-            "edit_file",
-            skill_input={"file_path": str(file_path), "old_text": "missing", "new_text": "x"},
-        ),
+        {
+            **_state(),
+            "action_input": {"file_path": str(file_path), "old_text": "missing", "new_text": "x"},
+        },
     )
     assert isinstance(error_result, dict)
     assert error_result.get("error") is True
     assert "message" in error_result
+
+
+def test_browser_use_extracts_url_from_natural_user_text(monkeypatch) -> None:
+    monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
+    registry = build_tool_registry(provider_manager=None)
+    from teambot.actions.tools import external_operation_tools as eot
+
+    def _raise_url_error(*args, **kwargs):
+        raise URLError("network disabled")
+
+    monkeypatch.setattr(eot, "urlopen", _raise_url_error)
+
+    result = registry.invoke(
+        "browser_use",
+        _state(user_text="open browser in visible and go to https://www.google.com"),
+    )
+
+    assert result.get("error") is True
+    assert "https://www.google.com" in str(result.get("message", ""))
+    assert "required" not in str(result.get("message", "")).lower()
 
 
 def test_high_risk_external_operation_tool_is_blocked_by_policy_gate(monkeypatch) -> None:
@@ -116,27 +158,35 @@ def test_high_risk_external_operation_tool_is_blocked_by_policy_gate(monkeypatch
     graph = build_graph(
         skills,
         tool_registry=tools,
+        planner=_Planner("execute_shell_command", {"command": "echo should-not-run"}),
         policy_gate=ExecutionPolicyGate(allow_high_risk=False),
     )
-    result = graph.invoke(
-        _state(
-            "execute_shell_command",
-            skill_input={"command": "echo should-not-run"},
-        )
-    )
+    result = graph.invoke(_state())
 
-    assert result["selected_skill"] == "execute_shell_command"
+    assert result["selected_action"] == "execute_shell_command"
     assert "High-risk action blocked by policy" in result["reply_text"]
     assert result["execution_trace"][0]["blocked"] is True
 
 
-def test_runtime_falls_back_when_follow_up_action_is_unavailable() -> None:
+def test_unknown_model_tool_call_finishes_safely() -> None:
     skills = SkillRegistry()
+    monkey_tools = build_tool_registry(provider_manager=None)
     skills.register(SkillManifest(name="create_task", description=""), lambda _s: {"message": "fallback"})
+    if not monkey_tools.list_manifests():
+        from teambot.actions.tools.registry import ToolManifest
 
-    graph = build_graph(skills)
-    result = graph.invoke(_state("tool_that_is_not_registered"))
+        monkey_tools.register(
+            ToolManifest(name="get_current_time", description="time tool"),
+            lambda _state: {"message": "time"},
+        )
+
+    graph = build_graph(
+        skills,
+        tool_registry=monkey_tools,
+        planner=_Planner("tool_that_is_not_registered"),
+    )
+    result = graph.invoke(_state())
 
     assert result["react_done"] is True
-    assert "could not continue" in result["reply_text"].lower()
+    assert "could not map" in result["reply_text"].lower()
 

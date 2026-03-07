@@ -1,5 +1,9 @@
-﻿from teambot.agents.core.graph import build_graph
-from teambot.agents.skills.registry import SkillManifest, SkillRegistry
+﻿from __future__ import annotations
+
+from teambot.contracts.contracts import ModelToolCall, ModelToolInvocationResult
+from teambot.agent.graph import build_graph
+from teambot.skills.registry import SkillManifest, SkillRegistry
+from teambot.actions.tools.registry import ToolManifest, ToolRegistry
 from teambot.domain.models import AgentState
 
 
@@ -41,20 +45,47 @@ def test_max_step_guard_short_circuits_act_execution() -> None:
     assert result["react_step"] == 3
 
 
-def test_unknown_follow_up_finishes_safely() -> None:
+def test_tool_result_is_followed_by_next_reasoner_turn() -> None:
     registry = SkillRegistry()
+    tools = ToolRegistry()
 
-    def create_task(_state: AgentState) -> dict[str, str]:
+    def lookup_time(_state: AgentState) -> dict[str, str]:
         return {"message": "task"}
 
-    registry.register(SkillManifest(name="create_task", description=""), create_task)
-    registry.register(SkillManifest(name="handle_reaction", description=""), create_task)
+    registry.register(SkillManifest(name="create_task", description=""), lookup_time)
+    registry.register(SkillManifest(name="handle_reaction", description=""), lookup_time)
+    tools.register(ToolManifest(name="get_current_time", description="time tool"), lookup_time)
 
-    graph = build_graph(registry)
-    state = _state("hello")
-    state["skill_output"] = {"next_skill": "missing_action"}
-    result = graph.invoke(state)
+    class _Planner:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def has_role(self, role: str) -> bool:
+            return role == "agent_model"
+
+        def invoke_role_tools(self, *, role: str, system_prompt: str, payload: dict, tools: list):
+            self.calls += 1
+            if self.calls == 1:
+                return ModelToolInvocationResult(
+                    text="",
+                    tool_calls=[ModelToolCall(name="get_current_time", arguments={})],
+                    provider="stub",
+                    model="stub",
+                )
+            return ModelToolInvocationResult(
+                text="final after task",
+                tool_calls=[],
+                provider="stub",
+                model="stub",
+            )
+
+        def invoke_role_text(self, *, role: str, system_prompt: str, user_message: str):
+            raise AssertionError("unexpected text-only path")
+
+    graph = build_graph(registry, tool_registry=tools, planner=_Planner())
+    result = graph.invoke(_state("hello"))
 
     assert result["react_done"] is True
-    assert "could not continue" in result["reply_text"].lower()
+    assert result["reply_text"] == "final after task"
+    assert result["execution_trace"][0]["action"] == "get_current_time"
 

@@ -1,6 +1,6 @@
-import json
+﻿import json
 
-from teambot.agents.tools.config import load_runtime_tool_config
+from teambot.actions.tools.config import load_runtime_tool_config
 
 
 def test_load_runtime_tool_config_from_json(tmp_path) -> None:
@@ -40,3 +40,4 @@ def test_missing_strict_tools_config_raises(tmp_path) -> None:
         assert False, "Expected FileNotFoundError"
     except FileNotFoundError:
         assert True
+

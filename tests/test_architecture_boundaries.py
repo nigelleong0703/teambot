@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -22,3 +22,4 @@ def test_legacy_planner_and_model_adapter_modules_removed() -> None:
 
     assert not planner_path.exists()
     assert not model_adapter_path.exists()
+

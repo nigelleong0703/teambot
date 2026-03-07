@@ -1,7 +1,7 @@
-from teambot.agents.mcp.bridge import register_mcp_tools
-from teambot.agents.mcp.config import load_mcp_runtime_config
-from teambot.agents.mcp.manager import MCPClientManager
-from teambot.agents.tools.registry import ToolRegistry
+﻿from teambot.mcp.bridge import register_mcp_tools
+from teambot.mcp.config import load_mcp_runtime_config
+from teambot.mcp.manager import MCPClientManager
+from teambot.actions.tools.registry import ToolRegistry
 
 
 def test_mcp_config_disabled_by_default() -> None:
@@ -35,7 +35,7 @@ def test_mcp_bridge_registers_tools_with_namesake_rename(monkeypatch) -> None:
 
     registry = ToolRegistry()
     # Existing builtin-like tool
-    from teambot.agents.tools.registry import ToolManifest
+    from teambot.actions.tools.registry import ToolManifest
 
     registry.register(
         ToolManifest(name="read_file", description="builtin read", risk_level="low"),
@@ -49,3 +49,4 @@ def test_mcp_bridge_registers_tools_with_namesake_rename(monkeypatch) -> None:
     names = {manifest.name for manifest in registry.list_manifests()}
     assert "read_file" in names
     assert any(name.startswith("read_file__mcp_") for name in names)
+
