@@ -41,6 +41,7 @@ Current runtime terminology baseline:
 - `RuntimeEvent`: domain-level event contract for step-by-step agent transcript rendering
 - `AgentService.stream_event(...)`: async runtime-event stream for TUI/CLI style clients, while `process_event(...)` remains the compatibility reply API
 - CLI now consumes `stream_event(...)` as its primary transcript source and renders step blocks such as `Step 1 · Thinking`, `Step 1 · Tool`, `Step 1 · Result`, `Step 2 · Final`
+- Local file/shell tools now default to the process startup directory; `WORKING_DIR` is treated as a fallback override instead of the primary local cwd
 - `RuntimeEvent` now includes live delta events:
   - `thinking_delta`
   - `final_delta`

@@ -6,6 +6,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _has_python_sources(path: Path) -> bool:
+    if not path.exists():
+        return False
+    return any(item.is_file() and item.suffix == ".py" for item in path.rglob("*.py"))
+
+
 def test_agent_structure_matches_canonical_top_level_layout() -> None:
     agent_dir = ROOT / "src" / "teambot" / "agent"
     assert (agent_dir / "graph.py").exists()
@@ -46,7 +52,7 @@ def test_agent_structure_matches_canonical_top_level_layout() -> None:
     assert (event_handlers_dir / "builtin.py").exists()
 
     assert not (ROOT / "src" / "teambot" / "runtime").exists()
-    assert not (ROOT / "src" / "teambot" / "agent_core").exists()
-    assert not (ROOT / "src" / "teambot" / "agents" / "providers").exists()
-    assert not (ROOT / "src" / "teambot" / "agents" / "skills").exists()
-    assert not (ROOT / "src" / "teambot" / "agents" / "mcp").exists()
+    assert _has_python_sources(ROOT / "src" / "teambot" / "agent_core") is False
+    assert _has_python_sources(ROOT / "src" / "teambot" / "interfaces") is False
+    assert _has_python_sources(ROOT / "src" / "teambot" / "plugins") is False
+    assert _has_python_sources(ROOT / "src" / "teambot" / "agents") is False

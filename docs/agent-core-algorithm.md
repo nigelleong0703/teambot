@@ -64,6 +64,7 @@ flowchart TD
 
 - File: `src/teambot/agent/state.py`
 - Initializes:
+  - `runtime_working_dir=current process cwd`
   - `react_step=0`
   - `react_max_steps=3` (default)
   - `react_done=false`
@@ -135,6 +136,7 @@ Behavior:
 - `minimal`: no tools
 - `external_operation`: `read_file`, `write_file`, `edit_file`, `execute_shell_command`, `browser_use`, `get_current_time`
 - `full`: external_operation + `desktop_screenshot` + `send_file_to_user`
+- For local runs, file/shell tools resolve relative paths and command cwd from `runtime_working_dir` first; `WORKING_DIR` is only a fallback override.
 
 ### 3.3 High-Risk Tools (Policy-Gated)
 

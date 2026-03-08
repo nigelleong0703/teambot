@@ -94,6 +94,7 @@ Disallowed:
 - Debug/utility runners should be under `app` (or a dedicated scripts area), not package root.
 - `app/cli.py` and `app/tui.py` own presentation only. Runtime trace/event generation stays in `agent/` and is surfaced via `RuntimeEvent` / `OutboundReply`.
 - Shared slash-command definitions belong in `app/slash_commands.py`. CLI and TUI should consume that shared dispatcher instead of maintaining separate command lists.
+- Local execution context such as startup cwd should be captured in runtime state, not rediscovered ad hoc inside tool implementations.
 
 ## 5. Documentation Rule
 
