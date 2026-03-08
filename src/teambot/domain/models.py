@@ -76,6 +76,7 @@ class AgentState(TypedDict):
     event_type: str
     user_text: str
     reaction: str | None
+    runtime_working_dir: str
     react_step: int
     react_max_steps: int
     react_done: bool

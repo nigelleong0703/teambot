@@ -141,6 +141,7 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - 当前 CLI 已经以 `RuntimeEvent` 作为主 transcript 数据源，不再主要依赖事后 `execution_trace` 拼接
 - tool surface 由 `TOOLS_PROFILE` 决定（`minimal|external_operation|full`）
 - CLI 支持 `--tools-profile` 与 `--tools-config <json>` 做 session 级覆盖（profile + per-tool enable/disable）
+- 本地 CLI/TUI/API 启动时，file/shell tools 默认以当前启动目录作为 working directory；`WORKING_DIR` 只作为 fallback override
 - CLI 始终使用 transcript 视图；`debug` 和 `stream` 是可见性开关，不是 mode
 - 当 provider 能流式返回 reasoning token 时，CLI 会在 `Thinking` 段里持续渲染
 - 当 provider 能流式返回最终文本时，CLI 会在 `Final (live)` 段里持续渲染，再避免把同一段 final answer 重复打印一遍

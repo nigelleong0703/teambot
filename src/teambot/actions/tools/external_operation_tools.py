@@ -31,18 +31,21 @@ def _coerce_bool(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes"}
 
 
-def _resolve_working_dir() -> Path:
+def _resolve_working_dir(state: AgentState) -> Path:
+    state_working_dir = str(state.get("runtime_working_dir") or "").strip()
+    if state_working_dir:
+        return Path(state_working_dir).expanduser().resolve()
     configured = os.getenv("WORKING_DIR", "").strip()
     if configured:
         return Path(configured).expanduser().resolve()
     return Path.cwd().resolve()
 
 
-def _resolve_file_path(file_path: str) -> Path:
+def _resolve_file_path(file_path: str, state: AgentState) -> Path:
     path = Path(file_path).expanduser()
     if path.is_absolute():
         return path.resolve()
-    return (_resolve_working_dir() / path).resolve()
+    return (_resolve_working_dir(state) / path).resolve()
 
 
 def _to_int(value: object, default: int) -> int:
@@ -74,7 +77,7 @@ def read_file(state: AgentState) -> dict[str, object]:
     if not file_path:
         return {"message": "Error: `file_path` is required.", "error": True}
 
-    path = _resolve_file_path(file_path)
+    path = _resolve_file_path(file_path, state)
     if not path.exists():
         return {"message": f"Error: File does not exist: {path}", "error": True}
     if not path.is_file():
@@ -133,7 +136,7 @@ def write_file(state: AgentState) -> dict[str, object]:
     if not file_path:
         return {"message": "Error: `file_path` is required.", "error": True}
 
-    path = _resolve_file_path(file_path)
+    path = _resolve_file_path(file_path, state)
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         path.write_text(content, encoding="utf-8")
@@ -158,7 +161,7 @@ def edit_file(state: AgentState) -> dict[str, object]:
     if not old_text:
         return {"message": "Error: `old_text` is required.", "error": True}
 
-    path = _resolve_file_path(file_path)
+    path = _resolve_file_path(file_path, state)
     if not path.exists() or not path.is_file():
         return {"message": f"Error: File does not exist: {path}", "error": True}
 
@@ -205,7 +208,7 @@ def execute_shell_command(state: AgentState) -> dict[str, object]:
             shell=True,
             capture_output=True,
             text=True,
-            cwd=_resolve_working_dir(),
+            cwd=_resolve_working_dir(state),
             timeout=timeout_seconds,
             check=False,
         )
@@ -320,7 +323,7 @@ def send_file_to_user(state: AgentState) -> dict[str, object]:
     file_path = str(params.get("file_path") or params.get("path") or "").strip()
     if not file_path:
         return {"message": "Error: `file_path` is required.", "error": True}
-    path = _resolve_file_path(file_path)
+    path = _resolve_file_path(file_path, state)
     if not path.exists() or not path.is_file():
         return {"message": f"Error: File does not exist: {path}", "error": True}
 

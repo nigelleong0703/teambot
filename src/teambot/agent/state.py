@@ -1,4 +1,6 @@
-﻿from __future__ import annotations
+from __future__ import annotations
+
+from pathlib import Path
 
 from ..domain.models import AgentState, InboundEvent
 
@@ -14,6 +16,7 @@ def build_initial_state(
         "event_type": event.event_type,
         "user_text": event.text,
         "reaction": event.reaction,
+        "runtime_working_dir": str(Path.cwd().resolve()),
         "react_step": 0,
         "react_max_steps": react_max_steps,
         "react_done": False,
@@ -28,4 +31,3 @@ def build_initial_state(
         "execution_trace": [],
         "reply_text": "",
     }
-

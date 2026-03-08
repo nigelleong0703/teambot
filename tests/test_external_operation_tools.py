@@ -149,6 +149,40 @@ def test_browser_use_extracts_url_from_natural_user_text(monkeypatch) -> None:
     assert "required" not in str(result.get("message", "")).lower()
 
 
+def test_runtime_working_dir_overrides_stale_env_for_shell_and_file_tools(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
+    monkeypatch.setenv("WORKING_DIR", "/home/nigelleong/teambot")
+    registry = build_tool_registry(provider_manager=None)
+
+    state = {
+        **_state(user_text="ls"),
+        "runtime_working_dir": str(tmp_path),
+    }
+
+    shell_result = registry.invoke(
+        "execute_shell_command",
+        {
+            **state,
+            "action_input": {"command": "pwd"},
+        },
+    )
+    assert shell_result.get("error") is not True
+    assert tmp_path.name in str(shell_result.get("message", ""))
+
+    file_result = registry.invoke(
+        "write_file",
+        {
+            **state,
+            "action_input": {"file_path": "notes.txt", "content": "hello"},
+        },
+    )
+    assert file_result.get("error") is not True
+    assert (tmp_path / "notes.txt").exists()
+
+
 def test_high_risk_external_operation_tool_is_blocked_by_policy_gate(monkeypatch) -> None:
     monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
     skills = SkillRegistry()
