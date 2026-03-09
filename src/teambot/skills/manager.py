@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import logging
-import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
+from ..runtime_paths import (
+    get_active_skills_dir as _get_active_skills_dir,
+    get_agent_skills_dir as _get_agent_skills_dir,
+    get_agent_home,
+    get_global_skills_dir as _get_global_skills_dir,
+)
 
 @dataclass(frozen=True)
 class SkillDoc:
@@ -19,25 +21,27 @@ class SkillDoc:
 
 
 def get_working_dir() -> Path:
-    return Path(os.getenv("WORKING_DIR", "~/.teambot")).expanduser().resolve()
+    return get_agent_home()
 
 
 def get_builtin_skills_dir() -> Path:
     return Path(__file__).parent / "packs"
 
 
+def get_global_skills_dir() -> Path:
+    return _get_global_skills_dir()
+
+
+def get_agent_skills_dir() -> Path:
+    return _get_agent_skills_dir()
+
+
 def get_customized_skills_dir() -> Path:
-    raw = os.getenv("CUSTOMIZED_SKILLS_DIR", "").strip()
-    if raw:
-        return Path(raw).expanduser().resolve()
-    return get_working_dir() / "customized_skills"
+    return get_agent_skills_dir()
 
 
 def get_active_skills_dir() -> Path:
-    raw = os.getenv("ACTIVE_SKILLS_DIR", "").strip()
-    if raw:
-        return Path(raw).expanduser().resolve()
-    return get_working_dir() / "active_skills"
+    return _get_active_skills_dir()
 
 
 def _collect_skills_from_dir(directory: Path) -> dict[str, Path]:
@@ -50,15 +54,29 @@ def _collect_skills_from_dir(directory: Path) -> dict[str, Path]:
     return skills
 
 
+def _skill_source_dirs(*, include_legacy_active: bool) -> list[tuple[str, Path]]:
+    sources: list[tuple[str, Path]] = [
+        ("builtin", get_builtin_skills_dir()),
+        ("global", get_global_skills_dir()),
+        ("agent", get_agent_skills_dir()),
+    ]
+    if include_legacy_active:
+        sources.append(("active", get_active_skills_dir()))
+    return sources
+
+
+def _collect_loaded_skills(*, include_legacy_active: bool) -> dict[str, Path]:
+    merged: dict[str, Path] = {}
+    for _, directory in _skill_source_dirs(include_legacy_active=include_legacy_active):
+        merged.update(_collect_skills_from_dir(directory))
+    return merged
+
+
 def sync_skills_to_active(
     skill_names: list[str] | None = None,
     force: bool = False,
 ) -> tuple[int, int]:
-    builtin = _collect_skills_from_dir(get_builtin_skills_dir())
-    customized = _collect_skills_from_dir(get_customized_skills_dir())
-
-    # Customized overrides builtin with same name.
-    skills_to_sync = {**builtin, **customized}
+    skills_to_sync = _collect_loaded_skills(include_legacy_active=False)
     if skill_names is not None:
         wanted = set(skill_names)
         skills_to_sync = {
@@ -83,25 +101,11 @@ def sync_skills_to_active(
 
 
 def list_available_skills() -> list[str]:
-    active_dir = get_active_skills_dir()
-    if not active_dir.exists():
-        return []
-    return sorted(
-        d.name
-        for d in active_dir.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists()
-    )
+    return [doc.name for doc in SkillService.list_available_skill_docs()]
 
 
 def ensure_skills_initialized() -> None:
-    active_dir = get_active_skills_dir()
-    active = list_available_skills()
-    if active:
-        return
-    logger.warning(
-        "No active skills found in %s. Runtime will load no skills until sync/enable is performed.",
-        active_dir,
-    )
+    return
 
 
 def _parse_frontmatter(content: str) -> tuple[str, str]:
@@ -146,17 +150,22 @@ def _read_skills_from_dir(directory: Path, source: str) -> list[SkillDoc]:
     return docs
 
 
+def _merge_skill_docs(*, include_legacy_active: bool) -> list[SkillDoc]:
+    merged: dict[str, SkillDoc] = {}
+    for source, directory in _skill_source_dirs(include_legacy_active=include_legacy_active):
+        for doc in _read_skills_from_dir(directory, source):
+            merged[doc.name] = doc
+    return [merged[name] for name in sorted(merged)]
+
+
 class SkillService:
     @staticmethod
     def list_all_skills() -> list[SkillDoc]:
-        return [
-            *_read_skills_from_dir(get_builtin_skills_dir(), "builtin"),
-            *_read_skills_from_dir(get_customized_skills_dir(), "customized"),
-        ]
+        return _merge_skill_docs(include_legacy_active=True)
 
     @staticmethod
     def list_available_skill_docs() -> list[SkillDoc]:
-        return _read_skills_from_dir(get_active_skills_dir(), "active")
+        return _merge_skill_docs(include_legacy_active=True)
 
     @staticmethod
     def enable_skill(name: str, force: bool = False) -> bool:

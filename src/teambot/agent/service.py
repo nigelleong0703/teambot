@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import asyncio
 from typing import Any, Callable
 
@@ -12,6 +11,7 @@ from ..actions.tools.registry import ToolRegistry
 from ..mcp.manager import MCPClientManager
 from ..providers.manager import ProviderManager
 from ..skills import SkillRegistry
+from ..runtime_paths import resolve_dynamic_skills_dir
 from .runtime import TeamBotRuntime
 from .state import build_initial_state
 
@@ -25,7 +25,7 @@ class AgentService:
         strict_tools_config: bool = False,
     ) -> None:
         self.store = MemoryStore()
-        self.dynamic_skills_dir = os.getenv("SKILLS_DIR", "").strip() or None
+        self.dynamic_skills_dir = resolve_dynamic_skills_dir()
         self.provider_manager: ProviderManager | None
         self.registry: SkillRegistry
         self.event_handler_registry: EventHandlerRegistry
@@ -41,7 +41,7 @@ class AgentService:
             tools_profile=tools_profile,
             strict_tools_config=strict_tools_config,
         )
-        self.reload_runtime()
+        self._sync_runtime_handles()
 
     def set_model_event_listener(
         self,

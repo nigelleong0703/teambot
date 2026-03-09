@@ -159,6 +159,35 @@ def test_graph_emits_runtime_events_for_tool_then_final_turn() -> None:
     assert events[1].observation == "2026-03-07 21:30:00"
 
 
+def test_tools_question_still_goes_through_reasoner() -> None:
+    tools = ToolRegistry()
+    tools.register(
+        ToolManifest(name="read_file", description="Read files"),
+        lambda _state: {"message": "ok"},
+    )
+    reasoner = _ReasonerStub(
+        calls=[
+            ModelToolInvocationResult(
+                text="I can help with file work and other enabled capabilities when needed.",
+                tool_calls=[],
+                provider="stub",
+                model="stub-model",
+            ),
+        ]
+    )
+
+    graph = build_graph(
+        SkillRegistry(),
+        tool_registry=tools,
+        planner=reasoner,
+    )
+
+    result = graph.invoke(_state("what tools do you have"))
+
+    assert result["reply_text"] == "I can help with file work and other enabled capabilities when needed."
+    assert result["reasoning_note"] == "Reasoner route: final answer"
+
+
 @pytest.mark.asyncio
 async def test_agent_service_stream_event_yields_runtime_events_and_persists_reply() -> None:
     service = AgentService(tools_profile="minimal")

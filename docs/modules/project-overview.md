@@ -30,7 +30,7 @@ It is not a prompt-only chatbot wrapper. It is an execution runtime that combine
 - Optional MCP bridge into the same action surface
 - Event idempotency and deterministic thread routing
 - Runtime transcript event stream for CLI/TUI clients
-- Textual TUI with Claude-like single-column workbench rendering
+- Terminal-native TUI with Claude-like workbench rendering and native terminal scrollback
 
 ## Typical Use Cases
 

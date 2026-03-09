@@ -41,11 +41,11 @@ Current runtime terminology baseline:
 - `RuntimeEvent`: domain-level event contract for step-by-step agent transcript rendering
 - `AgentService.stream_event(...)`: async runtime-event stream for TUI/CLI style clients, while `process_event(...)` remains the compatibility reply API
 - CLI now consumes `stream_event(...)` as its primary transcript source and renders step blocks such as `Step 1 · Thinking`, `Step 1 · Tool`, `Step 1 · Result`, `Step 2 · Final`
-- Local file/shell tools now default to the process startup directory; `WORKING_DIR` is treated as a fallback override instead of the primary local cwd
+- TeamBot runtime now derives prompt files, skill-doc directories, and tool working paths from `AGENT_HOME`; local tool execution no longer treats process startup cwd as the primary workspace
 - `RuntimeEvent` now includes live delta events:
   - `thinking_delta`
   - `final_delta`
-- `app/tui.py`: Textual-based TUI entrypoint built on the same `stream_event(...)` contract and renders a Claude-like single-column workbench with subdued tool/result summaries and a prominent final answer
+- `app/tui.py`: terminal-native TUI entrypoint built on the same `stream_event(...)` contract and renders a Claude-like workbench without taking over terminal scrollback
 
 ## Reference Docs
 

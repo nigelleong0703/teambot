@@ -11,6 +11,7 @@ from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 from ...domain.models import AgentState
+from ...runtime_paths import get_agent_work_dir
 
 _DEFAULT_EXEC_TIMEOUT_SECONDS = 20
 _DEFAULT_BROWSER_TIMEOUT_SECONDS = 10
@@ -35,10 +36,9 @@ def _resolve_working_dir(state: AgentState) -> Path:
     state_working_dir = str(state.get("runtime_working_dir") or "").strip()
     if state_working_dir:
         return Path(state_working_dir).expanduser().resolve()
-    configured = os.getenv("WORKING_DIR", "").strip()
-    if configured:
-        return Path(configured).expanduser().resolve()
-    return Path.cwd().resolve()
+    work_dir = get_agent_work_dir()
+    work_dir.mkdir(parents=True, exist_ok=True)
+    return work_dir
 
 
 def _resolve_file_path(file_path: str, state: AgentState) -> Path:
@@ -56,7 +56,7 @@ def _to_int(value: object, default: int) -> int:
 
 
 def _truncate(text: str) -> str:
-    max_chars = _to_int(os.getenv("TEAMBOT_TOOL_OUTPUT_MAX_CHARS"), _DEFAULT_OUTPUT_MAX_CHARS)
+    max_chars = _to_int(os.getenv("TOOL_OUTPUT_MAX_CHARS"), _DEFAULT_OUTPUT_MAX_CHARS)
     if max_chars <= 0:
         return text
     if len(text) <= max_chars:
@@ -196,7 +196,7 @@ def execute_shell_command(state: AgentState) -> dict[str, object]:
         return {"message": "Error: `command` is required.", "error": True}
 
     timeout_seconds = _to_int(
-        params.get("timeout_seconds") or os.getenv("TEAMBOT_EXEC_TIMEOUT_SECONDS"),
+        params.get("timeout_seconds") or os.getenv("EXEC_TIMEOUT_SECONDS"),
         _DEFAULT_EXEC_TIMEOUT_SECONDS,
     )
     if timeout_seconds <= 0:
@@ -257,7 +257,7 @@ def browser_use(state: AgentState) -> dict[str, object]:
         return {"message": f"Error: Unsupported URL scheme in {url}.", "error": True}
 
     timeout_seconds = _to_int(
-        params.get("timeout_seconds") or os.getenv("TEAMBOT_BROWSER_TIMEOUT_SECONDS"),
+        params.get("timeout_seconds") or os.getenv("BROWSER_TIMEOUT_SECONDS"),
         _DEFAULT_BROWSER_TIMEOUT_SECONDS,
     )
     if timeout_seconds <= 0:
@@ -339,4 +339,3 @@ def env_enabled(name: str, default: bool = False) -> bool:
     if name not in os.environ:
         return default
     return _coerce_bool(os.getenv(name))
-

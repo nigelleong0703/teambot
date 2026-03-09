@@ -149,12 +149,12 @@ def test_browser_use_extracts_url_from_natural_user_text(monkeypatch) -> None:
     assert "required" not in str(result.get("message", "")).lower()
 
 
-def test_runtime_working_dir_overrides_stale_env_for_shell_and_file_tools(
+def test_runtime_working_dir_overrides_agent_home_workdir_for_shell_and_file_tools(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
-    monkeypatch.setenv("WORKING_DIR", "/home/nigelleong/teambot")
+    monkeypatch.setenv("AGENT_HOME", "/home/nigelleong/.teambot/agents/tester")
     registry = build_tool_registry(provider_manager=None)
 
     state = {
@@ -181,6 +181,37 @@ def test_runtime_working_dir_overrides_stale_env_for_shell_and_file_tools(
     )
     assert file_result.get("error") is not True
     assert (tmp_path / "notes.txt").exists()
+
+
+def test_agent_home_workdir_is_default_for_relative_file_and_shell_operations(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
+    monkeypatch.setenv("AGENT_HOME", str(tmp_path / "agents" / "default"))
+    registry = build_tool_registry(provider_manager=None)
+
+    shell_result = registry.invoke(
+        "execute_shell_command",
+        {
+            **_state(user_text="pwd"),
+            "action_input": {"command": "pwd"},
+        },
+    )
+    assert shell_result.get("error") is not True
+    assert str((tmp_path / "agents" / "default" / "work").resolve()) in str(
+        shell_result.get("message", "")
+    )
+
+    file_result = registry.invoke(
+        "write_file",
+        {
+            **_state(),
+            "action_input": {"file_path": "notes.txt", "content": "hello"},
+        },
+    )
+    assert file_result.get("error") is not True
+    assert (tmp_path / "agents" / "default" / "work" / "notes.txt").exists()
 
 
 def test_high_risk_external_operation_tool_is_blocked_by_policy_gate(monkeypatch) -> None:
@@ -223,4 +254,3 @@ def test_unknown_model_tool_call_finishes_safely() -> None:
 
     assert result["react_done"] is True
     assert "could not map" in result["reply_text"].lower()
-

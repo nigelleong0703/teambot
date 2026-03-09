@@ -73,7 +73,7 @@ def _state(user_text: str) -> AgentState:
     }
 
 
-def test_reasoner_request_includes_active_skill_context(monkeypatch) -> None:
+def test_reasoner_request_includes_loaded_skill_context(monkeypatch) -> None:
     from teambot.skills import manager as skill_manager
 
     monkeypatch.setattr(
@@ -84,7 +84,7 @@ def test_reasoner_request_includes_active_skill_context(monkeypatch) -> None:
                 SkillDoc(
                     name="brainstorming",
                     description="Explore requirements before implementation",
-                    source="active",
+                    source="agent",
                     path="/tmp/brainstorming",
                     content="# Brainstorming\nUse before creative implementation work.",
                 )
@@ -104,10 +104,10 @@ def test_reasoner_request_includes_active_skill_context(monkeypatch) -> None:
 
     assert result["reply_text"] == "reasoner-final"
     assert reasoner.last_payload is not None
-    assert "active_skill_docs" in reasoner.last_payload
-    assert isinstance(reasoner.last_payload["active_skill_docs"], list)
-    assert reasoner.last_payload["active_skill_docs"][0]["name"] == "brainstorming"
-    assert "Active skill context" in reasoner.last_system_prompt
+    assert "skill_docs" in reasoner.last_payload
+    assert isinstance(reasoner.last_payload["skill_docs"], list)
+    assert reasoner.last_payload["skill_docs"][0]["name"] == "brainstorming"
+    assert "Loaded skill context" in reasoner.last_system_prompt
 
 
 def test_reasoner_tool_schema_excludes_skills_and_event_handlers() -> None:
@@ -147,4 +147,3 @@ def test_reasoner_tool_schema_excludes_skills_and_event_handlers() -> None:
     assert "brainstorming" not in tool_names
     assert "create_task" not in tool_names
     assert "handle_reaction" not in tool_names
-
