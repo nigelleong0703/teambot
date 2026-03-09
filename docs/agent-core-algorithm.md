@@ -48,7 +48,7 @@ flowchart TD
 flowchart TD
     R0["reason_node"] --> R1{"react_step >= react_max_steps?"}
     R1 -- "yes" --> R1D["react_done=true, finish"]
-    R1 -- "no" --> R2{"deterministic route? (reaction, /todo, tools question)"}
+    R1 -- "no" --> R2{"deterministic route? (reaction, /todo)"}
     R2 -- "yes" --> R2A["select deterministic event_handler action or finish directly"]
     R2 -- "no" --> R3{"reasoner available?"}
     R3 -- "yes" --> R4["invoke reasoner with native tools"]
@@ -64,7 +64,7 @@ flowchart TD
 
 - File: `src/teambot/agent/state.py`
 - Initializes:
-  - `runtime_working_dir=current process cwd`
+  - `runtime_working_dir=$AGENT_HOME/work`
   - `react_step=0`
   - `react_max_steps=3` (default)
   - `react_done=false`
@@ -80,12 +80,12 @@ flowchart TD
 
 - File: `src/teambot/agent/reason.py`
 - Responsibilities:
-  - deterministic routes for event handlers (`reaction_added`, `/todo`) and tools question
+  - deterministic routes for event handlers (`reaction_added`, `/todo`)
   - reasoner call for native model tool-calling or direct final text
 
 #### 2.1 Reasoner Prompt Source
 
-Base system prompt is composed from working-directory markdown files in this order:
+Base system prompt is composed from `AGENT_HOME/system` markdown files in this order:
 
 1. `AGENTS.md` (required)
 2. `SOUL.md` (optional)
@@ -93,13 +93,14 @@ Base system prompt is composed from working-directory markdown files in this ord
 
 Then runtime appends:
 - reasoner guidance text
-- active skill context summary (if available)
+- loaded skill context summary (if available)
+- internal visibility rule: user answers must describe capabilities without exposing raw tool/skill/action names
 
 #### 2.2 Reasoner Input/Output Contract
 
 Reasoner payload includes:
 - `event_type`, `user_text`, `reaction`, `last_observation`
-- `active_skill_docs` bounded excerpts (if active skill docs exist)
+- `skill_docs` bounded excerpts (if skill docs exist)
 
 Reasoner tool schema includes `tool` actions only.
 Deterministic `event_handler` actions are excluded from model tool schema.
@@ -136,7 +137,7 @@ Behavior:
 - `minimal`: no tools
 - `external_operation`: `read_file`, `write_file`, `edit_file`, `execute_shell_command`, `browser_use`, `get_current_time`
 - `full`: external_operation + `desktop_screenshot` + `send_file_to_user`
-- For local runs, file/shell tools resolve relative paths and command cwd from `runtime_working_dir` first; `WORKING_DIR` is only a fallback override.
+- File/shell tools resolve relative paths and command cwd from `runtime_working_dir`, which is initialized from `AGENT_HOME/work`.
 
 ### 3.3 High-Risk Tools (Policy-Gated)
 
@@ -147,9 +148,13 @@ Behavior:
 
 ### 3.4 Skills Runtime Semantics
 
-- Active skills are managed in `active_skills` lifecycle.
-- Active skill docs are injected into reasoner context for richer decision quality.
-- Active skill docs are not registered as executable actions.
+- Repo builtin skill docs live under `src/teambot/skills/packs`.
+- Shared skill docs live under `~/.teambot/skills`.
+- Agent-local skill docs live under `AGENT_HOME/skills`.
+- Optional dynamic skill plugins load from `AGENT_HOME/system/skills` unless explicitly overridden.
+- Runtime loads builtin + shared + agent-local skill docs into reasoner context by default.
+- Legacy `active_skills` remains compatibility-only for old slash commands.
+- Skill docs are not registered as executable actions.
 
 ### 4) Observe
 
@@ -242,22 +247,23 @@ Runtime call chain:
 - File: `src/teambot/app/tui.py`
 - The TUI consumes the same `AgentService.stream_event(...)` contract as the CLI.
 - TUI slash commands also use `src/teambot/app/slash_commands.py`, so supported commands are defined in one place.
-- The TUI renders a Claude Code style single-column workbench instead of explicit debug sections.
-- Top chrome is intentionally minimal: workspace path + `TeamBot`, with `working` only while a run is active.
-- Empty state uses a compact welcome panel with workspace/model context and quick-start tips, and disables transcript scrolling until the first run starts.
+- The TUI is terminal-native rather than full-screen: it prints a TeamBot workbench header, then returns to the normal terminal prompt loop.
+- Terminal scrollback remains the source of truth for transcript review, selection, and scrolling; there is no application-owned scroll container.
+- Empty state uses a compact welcome panel with workspace/model context and quick-start tips.
 - Active runs are rendered as:
-  - user prompt line (`> task`)
+  - user prompt line (`❯  task`)
+  - simple `✻ Thinking...` status line while the agent is still reasoning
   - subdued activity summaries (`used ...`, `observed ...`)
-  - prominent final answer line
-- Composer uses a single-line Claude-like prompt row with a leading `>` glyph instead of a boxed terminal input.
-- `final_delta` incrementally updates the visible final answer line.
-- `thinking_delta` remains available at the runtime-event layer for internal or debug-capable clients, but the TUI does not render it by default.
+  - prominent final answer line (`⏺ ...`)
+- The prompt uses plain terminal input instead of a boxed widget or alternate-screen composer.
+- `final_delta` incrementally updates the visible final answer line in-place.
+- `thinking_delta` remains available at the runtime-event layer, but the TUI collapses it into the same `✻ Thinking...` presentation instead of rendering raw token deltas.
 - Supported slash commands in the TUI:
   - `/help`
   - `/skills`
-  - `/skills sync [--force]`
-  - `/skills enable <name>`
-  - `/skills disable <name>`
+  - `/skills sync [--force]` (legacy active-dir compatibility)
+  - `/skills enable <name>` (legacy active-dir compatibility)
+  - `/skills disable <name>` (legacy active-dir compatibility)
   - `/newthread`
   - `/stream on|off`
   - `/reaction <name>`
@@ -270,6 +276,7 @@ Runtime call chain:
 2. Reasoner output quality depends on provider/model behavior and prompt discipline.
 3. Browser automation is still not aligned to the OpenClaw-style `browser(action=...)` protocol.
 4. Streaming smoothness depends on provider chunk granularity.
+5. The terminal-native TUI deliberately favors scrollback stability over rich in-place layout control, so visual structure is simpler than a full-screen app.
 
 ## Maintenance Checklist
 

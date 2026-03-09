@@ -1,6 +1,5 @@
 ﻿from __future__ import annotations
 
-import os
 from typing import Any, Callable
 
 from ..actions.event_handlers.registry import EventHandlerRegistry
@@ -11,6 +10,7 @@ from ..providers.manager import (
     ProviderManager,
     build_default_provider_manager,
 )
+from ..runtime_paths import resolve_dynamic_skills_dir
 from ..skills import SkillRegistry
 from ..domain.models import AgentState, RuntimeEvent
 from ..actions.registry import PluginHost
@@ -39,7 +39,7 @@ class TeamBotRuntime:
         self.dynamic_skills_dir = (
             dynamic_skills_dir
             if dynamic_skills_dir is not None
-            else (os.getenv("SKILLS_DIR", "").strip() or None)
+            else resolve_dynamic_skills_dir()
         )
         self.provider_manager: ProviderManager | None = (
             provider_manager
@@ -116,4 +116,3 @@ class TeamBotRuntime:
 
 
 TeamBotReactAgent = TeamBotRuntime
-

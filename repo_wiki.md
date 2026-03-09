@@ -43,7 +43,7 @@
   交互式 CLI 调试入口（主路径消费 `AgentService.stream_event(...)`，按 `Step N · Thinking/Tool/Result/Final` 渲染 transcript，同时支持把 reasoning token 流进 `Thinking`，把 answer token 流进 `Final (live)`）
 
 - `src/teambot/app/tui.py`
-  Textual TUI 入口（Claude Code 风格单列 workbench，顶部状态栏尽量弱化，底部输入框采用 Claude-like composer，空态 welcome 不强制滚动，消费同一条 `AgentService.stream_event(...)` 数据流，默认只展示更淡的 tool/result 摘要和更强的 final answer 视觉层级）
+  terminal-native TUI 入口（TeamBot welcome panel + 普通 terminal prompt，消费同一条 `AgentService.stream_event(...)` 数据流，不接管 terminal alternate screen，依赖原生 scrollback 做滚动和文字选择）
 
 - `src/teambot/app/slash_commands.py`
   CLI/TUI 共用的 slash command 定义与分发入口；用户可见命令只在这里维护，`/tools` 不对外暴露
@@ -98,7 +98,7 @@
 当前核心流程里，model prompt 在 reason/planner 阶段：
 
 - `src/teambot/agent/prompts/system_prompt.py`
-  - 从工作目录读取 `AGENTS.md`（required）+ `SOUL.md` + `PROFILE.md`
+  - 从 `AGENT_HOME/system` 读取 `AGENTS.md`（required）+ `SOUL.md` + `PROFILE.md`
 - `src/teambot/actions/tools/builtin.py`
   - 读取 `TOOLS_PROFILE` / `TOOLS_NAMESAKE_STRATEGY`
   - 调用 `runtime_builder` 组装 builtin tool surface
@@ -141,12 +141,15 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - 当前 CLI 已经以 `RuntimeEvent` 作为主 transcript 数据源，不再主要依赖事后 `execution_trace` 拼接
 - tool surface 由 `TOOLS_PROFILE` 决定（`minimal|external_operation|full`）
 - CLI 支持 `--tools-profile` 与 `--tools-config <json>` 做 session 级覆盖（profile + per-tool enable/disable）
-- 本地 CLI/TUI/API 启动时，file/shell tools 默认以当前启动目录作为 working directory；`WORKING_DIR` 只作为 fallback override
+- `AGENT_HOME` 是 agent 的唯一工作根：
+  - prompt 文件来自 `AGENT_HOME/system`
+  - file/shell tools 默认在 `AGENT_HOME/work` 执行
+  - reasoner skill docs 默认来自 `src/teambot/skills/packs`、`~/.teambot/skills`、`AGENT_HOME/skills`
 - CLI 始终使用 transcript 视图；`debug` 和 `stream` 是可见性开关，不是 mode
 - 当 provider 能流式返回 reasoning token 时，CLI 会在 `Thinking` 段里持续渲染
 - 当 provider 能流式返回最终文本时，CLI 会在 `Final (live)` 段里持续渲染，再避免把同一段 final answer 重复打印一遍
-- TUI 也消费同一条 event stream，但呈现层不暴露 `Step N` 标题，也不默认渲染 thinking；它只显示更接近 Claude 的 tool/result 摘要和 final answer
-- skills 来自 active_skills；只注入 reasoner context；不会自动 sync 初始化
+- TUI 也消费同一条 event stream，但以普通 terminal transcript 输出，不接管 scroll；thinking 会收敛成一条 `✻ Thinking...`
+- skills 默认来自 builtin + shared + agent-local 三层；只注入 reasoner context；不会注册成 executable action
 - CLI/TUI 共用 slash command surface：`/help`、`/skills`、`/skills sync [--force]`、`/skills enable <name>`、`/skills disable <name>`、`/newthread`、`/stream on|off`、`/reaction <name>`、`/exit`
 - `/tools` 已从用户可见 slash surface 移除
 - MCP 开启时通过 bridge 注入同一 action surface（`MCP_ENABLED=true`）
@@ -179,5 +182,3 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - 改了核心算法（reason/act/observe/compose、tool prompt、provider streaming 等），必须同步更新 `docs/agent-core-algorithm.md`
 - 改了模块依赖方向，必须同步更新 `docs/architecture-boundaries.md`
 - 新人或 AI 上手，优先读本文件 + 第 9 节文档
-
-

@@ -51,9 +51,8 @@ def build_reasoner_skill_context(
         rows.append(f"- {doc.name}: {description}")
         payload_docs.append(_to_payload_doc(doc, max_content_chars=max_content_chars))
 
-    system_prompt_suffix = "Active skill context:\n" + "\n".join(rows)
+    system_prompt_suffix = "Loaded skill context:\n" + "\n".join(rows)
     return ReasonerSkillContext(
         system_prompt_suffix=system_prompt_suffix,
         payload_docs=payload_docs,
     )
-

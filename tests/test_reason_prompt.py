@@ -10,9 +10,9 @@ def test_reasoner_prompt_keeps_internal_tool_category_guidance() -> None:
     assert "Never invent action names." in prompt
 
 
-def test_reasoner_prompt_does_not_add_user_visibility_rule() -> None:
+def test_reasoner_prompt_hides_internal_implementation_details_from_users() -> None:
     prompt = reason_module._reasoner_prompt()
 
-    assert "do not expose" not in prompt.lower()
-    assert "do not reveal" not in prompt.lower()
-    assert "tool list" not in prompt.lower()
+    assert "never expose internal tool names" in prompt.lower()
+    assert "skill pack names" in prompt.lower()
+    assert "user-facing capabilities only" in prompt.lower()

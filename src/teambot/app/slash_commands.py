@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
-from ..skills.manager import SkillService, list_available_skills
+from ..skills.manager import SkillService
 
 
 @dataclass(frozen=True)
@@ -30,10 +30,10 @@ def default_slash_command_specs(*, supports_debug: bool) -> list[SlashCommandSpe
         SlashCommandSpec("/newthread", "start a new thread id"),
         SlashCommandSpec("/stream on|off", "toggle model token streaming"),
         SlashCommandSpec("/reaction <name>", "send reaction_added event"),
-        SlashCommandSpec("/skills", "list skills and active status"),
-        SlashCommandSpec("/skills sync [--force]", "sync skills into active set"),
-        SlashCommandSpec("/skills enable <name>", "enable one skill by name"),
-        SlashCommandSpec("/skills disable <name>", "disable one skill by name"),
+        SlashCommandSpec("/skills", "list loaded builtin/global/agent skills"),
+        SlashCommandSpec("/skills sync [--force]", "legacy: copy loaded skills into active dir"),
+        SlashCommandSpec("/skills enable <name>", "legacy: enable one skill in active dir"),
+        SlashCommandSpec("/skills disable <name>", "legacy: remove one skill from active dir"),
     ]
     if supports_debug:
         specs.insert(4, SlashCommandSpec("/debug on|off", "print prompt/payload and reasoning tokens"))
@@ -53,15 +53,13 @@ def new_thread_ts() -> str:
 
 
 def list_skills_lines() -> list[str]:
-    active = set(list_available_skills())
-    all_skills = SkillService.list_all_skills()
-    if not all_skills:
+    loaded = SkillService.list_available_skill_docs()
+    if not loaded:
         return ["[skills] no skills discovered"]
-    rows = ["[skills] available:"]
-    for skill in all_skills:
-        enabled = "yes" if skill.name in active else "no"
+    rows = ["[skills] loaded:"]
+    for skill in loaded:
         description = skill.description.strip() or "(no description)"
-        rows.append(f"- {skill.name} (enabled={enabled}, source={skill.source}): {description}")
+        rows.append(f"- {skill.name} (source={skill.source}): {description}")
     return rows
 
 

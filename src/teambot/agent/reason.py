@@ -33,27 +33,6 @@ def _select_action(
     return payload
 
 
-def _is_tools_question(text: str) -> bool:
-    normalized = text.strip().lower()
-    if not normalized:
-        return False
-    return "tool" in normalized and any(
-        token in normalized
-        for token in ("what", "which", "list", "have", "available")
-    )
-
-
-def _deterministic_tools_message(action_registry: ActionPluginRegistry) -> str:
-    rows: list[str] = []
-    for action in action_registry.list_actions():
-        if action.source != "tool":
-            continue
-        rows.append(f"- {action.name}: {action.description}")
-    if not rows:
-        return "No tools are currently enabled."
-    return "Enabled tools:\n" + "\n".join(rows)
-
-
 def _deterministic_direct_route(
     state: AgentState,
     action_registry: ActionPluginRegistry,
@@ -67,12 +46,6 @@ def _deterministic_direct_route(
     if user_text.startswith("/todo") and action_registry.has_action("create_task"):
         return _select_action("create_task", "Deterministic route: /todo command")
 
-    if _is_tools_question(user_text):
-        return _finish(
-            "Deterministic route: tools question",
-            message=_deterministic_tools_message(action_registry),
-        )
-
     return None
 
 
@@ -81,7 +54,9 @@ def _reasoner_prompt() -> str:
         "You are TeamBot.\n"
         "You may call tools to fulfill user requests.\n"
         "Call tools when external operations are required (files, shell, browser, time).\n"
-        "Use active skill context as guidance, not as executable actions.\n"
+        "Use loaded skill context as guidance, not as executable actions.\n"
+        "Never expose internal tool names, skill pack names, action names, slash commands, or implementation details to end users.\n"
+        "When users ask what you can do, answer with user-facing capabilities only.\n"
         "If no action is needed, respond directly in plain text.\n"
         "Never invent action names."
     )
@@ -110,7 +85,7 @@ def _reasoner_payload(state: AgentState) -> dict[str, Any]:
     }
     skill_context = build_reasoner_skill_context()
     if skill_context.payload_docs:
-        payload["active_skill_docs"] = skill_context.payload_docs
+        payload["skill_docs"] = skill_context.payload_docs
     return payload
 
 

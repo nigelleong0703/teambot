@@ -5,10 +5,12 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def isolate_runtime_env(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
-    workdir = tmp_path / ".teambot"
-    monkeypatch.setenv("WORKING_DIR", str(workdir))
+    agent_home = tmp_path / ".teambot" / "agents" / "test-agent"
+    monkeypatch.setenv("AGENT_HOME", str(agent_home))
+    monkeypatch.delenv("WORKING_DIR", raising=False)
     monkeypatch.delenv("ACTIVE_SKILLS_DIR", raising=False)
     monkeypatch.delenv("CUSTOMIZED_SKILLS_DIR", raising=False)
+    monkeypatch.delenv("SKILLS_DIR", raising=False)
     monkeypatch.delenv("AGENT_MODEL", raising=False)
     monkeypatch.delenv("AGENT_PROVIDER", raising=False)
     monkeypatch.delenv("AGENT_API_KEY", raising=False)
@@ -24,8 +26,8 @@ def isolate_runtime_env(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ENABLE_SEND_FILE_TOOL", raising=False)
     monkeypatch.delenv("ENABLE_ECHO_TOOL", raising=False)
     monkeypatch.delenv("ENABLE_EXEC_TOOL", raising=False)
-    monkeypatch.delenv("TEAMBOT_EXEC_TIMEOUT_SECONDS", raising=False)
-    monkeypatch.delenv("TEAMBOT_BROWSER_TIMEOUT_SECONDS", raising=False)
-    monkeypatch.delenv("TEAMBOT_TOOL_OUTPUT_MAX_CHARS", raising=False)
+    monkeypatch.delenv("EXEC_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("BROWSER_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("TOOL_OUTPUT_MAX_CHARS", raising=False)
     monkeypatch.delenv("MCP_ENABLED", raising=False)
     monkeypatch.delenv("MCP_SERVERS_JSON", raising=False)

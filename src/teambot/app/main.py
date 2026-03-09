@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from ..skills.manager import SkillService, list_available_skills
+from ..skills.manager import SkillService
 from .bootstrap import build_agent_service
 from ..domain.models import InboundEvent
 
@@ -34,20 +34,21 @@ async def handle_slack_event(event: InboundEvent) -> dict:
 @app.get("/skills")
 async def list_skills() -> dict:
     manifests = [m.__dict__ for m in service.registry.list_manifests()]
-    active = set(list_available_skills())
-    all_skills = SkillService.list_all_skills()
+    loaded_docs = SkillService.list_available_skill_docs()
+    loaded_names = sorted({doc.name for doc in loaded_docs})
     return {
         "runtime_skills": manifests,
-        "active_skill_names": sorted(active),
+        "loaded_skill_names": loaded_names,
+        "active_skill_names": loaded_names,
         "all_skills": [
             {
                 "name": s.name,
                 "description": s.description,
                 "source": s.source,
                 "path": s.path,
-                "enabled": s.name in active,
+                "enabled": True,
             }
-            for s in all_skills
+            for s in loaded_docs
         ],
     }
 
@@ -89,5 +90,4 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
-
 

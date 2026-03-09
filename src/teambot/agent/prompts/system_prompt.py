@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
+
+from ...runtime_paths import get_agent_system_dir
 
 DEFAULT_SYSTEM_PROMPT = "You are TeamBot, a helpful assistant."
 
 
-def _resolve_working_dir(working_dir: str | Path | None) -> Path:
+def _resolve_prompt_root(working_dir: str | Path | None) -> Path:
     if working_dir is not None:
         return Path(working_dir).expanduser().resolve()
-
-    env_dir = os.getenv("WORKING_DIR", "").strip()
-    if env_dir:
-        return Path(env_dir).expanduser().resolve()
-
-    return Path.cwd().resolve()
+    return get_agent_system_dir()
 
 
 def _strip_frontmatter(content: str) -> str:
@@ -36,7 +32,7 @@ def _read_prompt_file(path: Path) -> str:
 def build_system_prompt_from_working_dir(
     working_dir: str | Path | None = None,
 ) -> str:
-    resolved = _resolve_working_dir(working_dir)
+    resolved = _resolve_prompt_root(working_dir)
 
     sections: list[str] = []
     required_agents = _read_prompt_file(resolved / "AGENTS.md")

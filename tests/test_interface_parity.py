@@ -110,11 +110,11 @@ def test_bootstrap_does_not_override_existing_environment_with_dotenv(
     assert endpoint.base_url == "https://shell.example/v1"
 
 
-def test_build_initial_state_captures_current_working_directory(
+def test_build_initial_state_uses_agent_home_work_directory(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("AGENT_HOME", str(tmp_path / ".teambot" / "agents" / "demo"))
     event = InboundEvent(
         event_id="evt-cwd-1",
         event_type="message",
@@ -127,7 +127,8 @@ def test_build_initial_state_captures_current_working_directory(
 
     state = build_initial_state(event=event, conversation_key="T1:C1:1.1")
 
-    assert state["runtime_working_dir"] == str(tmp_path.resolve())
-
+    assert state["runtime_working_dir"] == str(
+        (tmp_path / ".teambot" / "agents" / "demo" / "work").resolve()
+    )
 
 
