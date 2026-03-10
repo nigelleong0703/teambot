@@ -73,7 +73,7 @@ This is the actual outstanding backlog based on the current canonical docs.
 2. Execution policy hardening
 3. Provider/runtime performance controls
 4. Strict prompt contract
-5. Channels / cron / memory compaction
+5. Channels / cron / richer memory infrastructure
 
 ## Runtime Sanity Checklist
 
