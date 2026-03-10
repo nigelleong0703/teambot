@@ -4,7 +4,7 @@ import sys
 import types
 
 from teambot.providers.base import ProviderEndpoint
-from teambot.providers.clients.langchain import LangChainProviderClient
+from teambot.providers.clients.langchain import LangChainProviderClient, normalize_chat_response
 
 
 class _Message:
@@ -93,3 +93,49 @@ def test_langchain_client_streams_tool_calling_without_falling_back(monkeypatch)
     assert response.tool_calls[0]["name"] == "get_current_time"
     assert response.tool_calls[0]["arguments"]["timezone"] == "Asia/Kuala_Lumpur"
     assert "".join(tokens) == ""
+
+
+def test_normalize_chat_response_strips_inline_think_tags() -> None:
+    class _Resp:
+        content = "<think>internal reasoning</think>Hello there"
+        response_metadata = {"finish_reason": "stop"}
+        usage_metadata = {}
+
+    normalized = normalize_chat_response(_Resp())
+
+    assert normalized.text == "Hello there"
+
+
+def test_langchain_client_streaming_strips_think_blocks(monkeypatch) -> None:
+    fake_messages = types.SimpleNamespace(HumanMessage=_Message, SystemMessage=_Message)
+    monkeypatch.setitem(sys.modules, "langchain_core.messages", fake_messages)
+
+    class _StreamingModel:
+        def bind_tools(self, tools, tool_choice="auto"):
+            _ = (tools, tool_choice)
+            return self
+
+        def stream(self, messages):
+            _ = messages
+            yield _Chunk(content="<think>")
+            yield _Chunk(content="hidden")
+            yield _Chunk(content="</think>Hello")
+            yield _Chunk(content=" world")
+
+        def invoke(self, messages):
+            _ = messages
+            return _Chunk(content="<think>hidden</think>Hello world")
+
+    endpoint = ProviderEndpoint(provider="openai-compatible", model="gpt-test")
+    client = LangChainProviderClient(endpoint)
+    monkeypatch.setattr(client, "_get_model", lambda: _StreamingModel())
+
+    tokens: list[str] = []
+    response = client.invoke(
+        system_prompt="sys",
+        payload={"message": "hi"},
+        on_token=tokens.append,
+    )
+
+    assert "".join(tokens) == "Hello world"
+    assert response.text == "Hello world"

@@ -24,6 +24,7 @@ from ..skills.manager import SkillService
 from .bootstrap import build_agent_service
 from .slash_commands import SlashCommandAction, dispatch_slash_command, new_thread_ts
 from .terminal_io import discard_pending_stdin, suppress_stdin_echo
+from .tui_input import TuiInputReader, build_tui_input_reader
 
 
 _ActivityKind = Literal["tool", "result"]
@@ -292,6 +293,7 @@ class TeamBotTuiApp:
         thread_ts: str | None = None,
         user_id: str = "U1",
         service: AgentService | None = None,
+        input_reader: TuiInputReader | None = None,
     ) -> None:
         self.team_id = team_id
         self.channel_id = channel_id
@@ -302,6 +304,7 @@ class TeamBotTuiApp:
         self._stream_live = True
         self._exit_requested = False
         self._use_color = self._supports_color()
+        self._input_reader = input_reader or build_tui_input_reader(use_color=self._use_color)
         self.transcript = TranscriptRenderer(
             model_name=self._resolve_model_name(),
             loaded_skills_count=len(SkillService.list_available_skill_docs()),
@@ -312,8 +315,7 @@ class TeamBotTuiApp:
         self._print_startup()
         while True:
             try:
-                discard_pending_stdin()
-                raw = input(self._style("❯  ", "prompt")).strip()
+                raw = await self._read_user_input()
             except EOFError:
                 print()
                 break
@@ -334,6 +336,10 @@ class TeamBotTuiApp:
                 self._status = "ready"
                 print()
                 print("[interrupted]")
+
+    async def _read_user_input(self) -> str:
+        discard_pending_stdin()
+        return (await self._input_reader.read(self._style("❯  ", "prompt"))).strip()
 
     async def _handle_command(self, raw: str) -> bool:
         action = dispatch_slash_command(

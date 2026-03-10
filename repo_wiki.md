@@ -45,6 +45,9 @@
 - `src/teambot/app/tui.py`
   terminal-native TUI 入口（TeamBot welcome panel + 普通 terminal prompt，消费同一条 `AgentService.stream_event(...)` 数据流，不接管 terminal alternate screen，依赖原生 scrollback 做滚动和文字选择）
 
+- `src/teambot/app/tui_input.py`
+  TUI 输入适配层；优先走 `prompt_toolkit` 多行 composer，缺失依赖时回退到 plain `input()`
+
 - `src/teambot/app/slash_commands.py`
   CLI/TUI 共用的 slash command 定义与分发入口；用户可见命令只在这里维护，`/tools` 不对外暴露
 
@@ -193,6 +196,7 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - 当 provider 能流式返回 reasoning token 时，CLI 会在 `Thinking` 段里持续渲染
 - 当 provider 能流式返回最终文本时，CLI 会在 `Final (live)` 段里持续渲染，再避免把同一段 final answer 重复打印一遍
 - TUI 也消费同一条 event stream，但以普通 terminal transcript 输出，不接管 scroll；thinking 会收敛成一条 `✻ Thinking...`
+- TUI 默认优先使用 `prompt_toolkit` 多行输入：`Enter` 提交，`Esc` 后跟 `Enter` 或 `Ctrl+J` 插入换行；如果依赖不可用则退回旧的单行输入
 - CLI/TUI 在 active run 期间会临时关闭终端输入回显，并在显示新 prompt 前清空输入缓冲，避免运行中误输入的按键串到下一条消息或显示成 `^R` 之类的杂讯
 - skills 默认来自 builtin + shared + agent-local 三层；只注入 reasoner context；不会注册成 executable action
 - CLI/TUI 共用 slash command surface：`/help`、`/skills`、`/skills sync [--force]`、`/skills enable <name>`、`/skills disable <name>`、`/newthread`、`/stream on|off`、`/reaction <name>`、`/exit`

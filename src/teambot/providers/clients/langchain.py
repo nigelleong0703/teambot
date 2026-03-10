@@ -46,6 +46,7 @@ class LangChainProviderClient:
             return normalize_chat_response(response)
 
         text_parts: list[str] = []
+        text_sanitizer = _ThinkTagStripper()
         usage: dict[str, Any] = {}
         finish_reason = ""
         raw_chunks: list[Any] = []
@@ -63,8 +64,10 @@ class LangChainProviderClient:
                         combined_chunk = chunk
                 piece = _extract_chunk_text(chunk)
                 if piece:
-                    text_parts.append(piece)
-                    on_token(piece)
+                    visible_piece = text_sanitizer.push(piece)
+                    if visible_piece:
+                        text_parts.append(visible_piece)
+                        on_token(visible_piece)
                 reasoning_piece = _extract_chunk_reasoning(chunk)
                 if reasoning_piece and on_reasoning is not None:
                     on_reasoning(reasoning_piece)
@@ -82,6 +85,10 @@ class LangChainProviderClient:
             if combined_chunk is not None
             else NormalizedResponse(text="", raw=raw_chunks)
         )
+        trailing_visible = text_sanitizer.finish()
+        if trailing_visible:
+            text_parts.append(trailing_visible)
+            on_token(trailing_visible)
 
         if stream_error is not None or (
             not normalized_stream.text and not normalized_stream.tool_calls
@@ -184,7 +191,7 @@ class LangChainProviderClient:
 
 def normalize_chat_response(response: Any) -> NormalizedResponse:
     content = getattr(response, "content", "")
-    text = _content_to_text(content)
+    text = _strip_think_tags(_content_to_text(content))
     finish_reason = ""
     usage: dict[str, Any] = {}
     tool_calls = _extract_tool_calls(response)
@@ -238,6 +245,59 @@ def _extract_chunk_text(chunk: Any) -> str:
                     pieces.append(text)
         return "".join(pieces)
     return ""
+
+
+class _ThinkTagStripper:
+    def __init__(self) -> None:
+        self._in_think = False
+        self._pending = ""
+
+    def push(self, value: str) -> str:
+        return self._consume(value, final=False)
+
+    def finish(self) -> str:
+        return self._consume("", final=True)
+
+    def _consume(self, value: str, *, final: bool) -> str:
+        self._pending += value
+        output: list[str] = []
+        while self._pending:
+            if self._in_think:
+                close_index = self._pending.find("</think>")
+                if close_index < 0:
+                    if final:
+                        self._pending = ""
+                    else:
+                        self._pending = self._pending[-7:]
+                    return "".join(output)
+                self._pending = self._pending[close_index + len("</think>") :]
+                self._in_think = False
+                continue
+
+            open_index = self._pending.find("<think>")
+            if open_index < 0:
+                if final:
+                    output.append(self._pending)
+                    self._pending = ""
+                elif len(self._pending) > 6:
+                    output.append(self._pending[:-6])
+                    self._pending = self._pending[-6:]
+                return "".join(output)
+
+            if open_index > 0:
+                output.append(self._pending[:open_index])
+            self._pending = self._pending[open_index + len("<think>") :]
+            self._in_think = True
+        return "".join(output)
+
+
+def _strip_think_tags(value: str) -> str:
+    if "<think>" not in value:
+        return value
+    stripper = _ThinkTagStripper()
+    visible = stripper.push(value)
+    visible += stripper.finish()
+    return visible
 
 
 def _extract_chunk_reasoning(chunk: Any) -> str:

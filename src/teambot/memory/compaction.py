@@ -113,7 +113,7 @@ class ProviderBackedSummaryGenerator:
     @staticmethod
     def _system_prompt() -> str:
         return (
-            "You are compressing session-scoped working memory for TeamBot.\n"
+            "You are compressing session-scoped working memory.\n"
             "Rewrite the prior summary plus compacted turns into a concise rolling summary.\n"
             "Return plain text only, no markdown fences or JSON.\n"
             "Keep only stable context that will help the next turn: current goal, decisions, constraints, completed actions, and unresolved items.\n"
