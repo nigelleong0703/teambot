@@ -158,6 +158,12 @@ PYTHONPATH=src python -m teambot.app.tui --tools-config ./tools.json --tools-pro
 TUI notes:
 - TUI is terminal-native; it does not take over the terminal with an alternate-screen full-screen app.
 - Startup prints a TeamBot welcome panel, then returns to a normal `❯` prompt.
+- TUI now uses a multiline composer when `prompt_toolkit` is installed.
+- Input keys in multiline mode:
+  - `Enter` submits the current message
+  - `Esc` then `Enter` inserts a newline
+  - `Ctrl+J` also inserts a newline for terminals that do not send distinct shifted-enter sequences
+- If `prompt_toolkit` is unavailable, TUI falls back to the old single-line `input()` behavior.
 - Transcript output stays in the terminal scrollback, so text selection and native scrolling still work.
 - Live provider reasoning collapses into a simple `✻ Thinking...` line.
 - Live provider answer tokens grow the current `⏺ ...` line in-place.

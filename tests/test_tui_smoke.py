@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from teambot.app import tui_input
 from teambot.app.tui import TeamBotTuiApp, TranscriptRenderer
 from teambot.domain.models import OutboundReply, ReplyTarget, RuntimeEvent
 
@@ -36,6 +37,49 @@ class _ServiceStub:
             reasoning_note="",
             execution_trace=[],
         )
+
+
+@dataclass
+class _InputReaderStub:
+    responses: list[str]
+    prompts: list[str]
+
+    def read(self, prompt_text: str) -> str:
+        self.prompts.append(prompt_text)
+        if not self.responses:
+            raise EOFError
+        return self.responses.pop(0)
+
+
+class _FakePromptSession:
+    def __init__(self, **kwargs) -> None:
+        self.kwargs = kwargs
+        self.prompts: list[object] = []
+
+    def prompt(self, prompt_text: object) -> str:
+        self.prompts.append(prompt_text)
+        return "composed message"
+
+
+class _FakeANSI:
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+
+class _FakeHistory:
+    pass
+
+
+class _FakeKeyBindings:
+    def __init__(self) -> None:
+        self.bindings: list[tuple[str, ...]] = []
+
+    def add(self, *keys: str):
+        def decorator(func):
+            self.bindings.append(keys)
+            return func
+
+        return decorator
 
 
 def test_transcript_renderer_shows_terminal_welcome_state_before_any_task() -> None:
@@ -141,6 +185,51 @@ def test_tui_status_line_is_workspace_path_only() -> None:
     assert "TeamBot" not in status
     assert "live" not in status.lower()
     assert "ready" not in status.lower()
+
+
+def test_tui_reads_from_injected_input_reader_and_preserves_multiline_text() -> None:
+    reader = _InputReaderStub(
+        responses=["  first line\nsecond line  "],
+        prompts=[],
+    )
+    app = TeamBotTuiApp(
+        service=_ServiceStub(),  # type: ignore[arg-type]
+        input_reader=reader,  # type: ignore[arg-type]
+    )
+
+    raw = app._read_user_input()
+    event = app._build_event(raw)
+
+    assert raw == "first line\nsecond line"
+    assert reader.prompts == ["❯  "]
+    assert event is not None
+    assert event.text == "first line\nsecond line"
+
+
+def test_build_tui_input_reader_falls_back_to_plain_input_without_prompt_toolkit(monkeypatch) -> None:
+    monkeypatch.setattr(tui_input, "_load_prompt_toolkit_modules", lambda: None)
+
+    reader = tui_input.build_tui_input_reader(use_color=False)
+
+    assert isinstance(reader, tui_input.PlainInputReader)
+
+
+def test_build_tui_input_reader_uses_prompt_toolkit_multiline_session(monkeypatch) -> None:
+    monkeypatch.setattr(
+        tui_input,
+        "_load_prompt_toolkit_modules",
+        lambda: (_FakePromptSession, _FakeANSI, _FakeHistory, _FakeKeyBindings),
+    )
+
+    reader = tui_input.build_tui_input_reader(use_color=True)
+
+    assert isinstance(reader, tui_input.PromptToolkitInputReader)
+    assert reader.read("❯  ") == "composed message"
+    assert isinstance(reader.session.prompts[0], _FakeANSI)
+    assert reader.session.kwargs["multiline"] is True
+    assert ("enter",) in reader.session.kwargs["key_bindings"].bindings
+    assert ("escape", "enter") in reader.session.kwargs["key_bindings"].bindings
+    assert ("c-j",) in reader.session.kwargs["key_bindings"].bindings
 
 
 @pytest.mark.asyncio
