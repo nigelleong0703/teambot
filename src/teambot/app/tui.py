@@ -18,10 +18,12 @@ from ..actions.tools.profiles import (
 )
 from ..agent.service import AgentService
 from ..domain.models import InboundEvent, OutboundReply, RuntimeEvent
+from ..providers.registry import PROFILE_AGENT
 from ..runtime_paths import get_agent_work_dir
 from ..skills.manager import SkillService
 from .bootstrap import build_agent_service
-from .slash_commands import SlashCommandAction, dispatch_slash_command
+from .slash_commands import SlashCommandAction, dispatch_slash_command, new_thread_ts
+from .terminal_io import discard_pending_stdin, suppress_stdin_echo
 
 
 _ActivityKind = Literal["tool", "result"]
@@ -99,6 +101,12 @@ class TranscriptRenderer:
             run.thinking_active = False
             observation = event.observation or event.text or "(empty)"
             run.activities.append(_ActivityItem(kind="result", text=f"observed {self._truncate(observation)}"))
+            return
+        if event.event_type == "memory_compacted":
+            run.thinking_active = False
+            run.activities.append(
+                _ActivityItem(kind="result", text=(event.text or "compacted summary").strip())
+            )
             return
         if event.event_type == "final_delta":
             run.thinking_active = False
@@ -281,13 +289,13 @@ class TeamBotTuiApp:
         *,
         team_id: str = "T1",
         channel_id: str = "C1",
-        thread_ts: str = "1710000000.0001",
+        thread_ts: str | None = None,
         user_id: str = "U1",
         service: AgentService | None = None,
     ) -> None:
         self.team_id = team_id
         self.channel_id = channel_id
-        self.thread_ts = thread_ts
+        self.thread_ts = thread_ts or new_thread_ts()
         self.user_id = user_id
         self.service = service or build_agent_service()
         self._status = "ready"
@@ -295,6 +303,7 @@ class TeamBotTuiApp:
         self._exit_requested = False
         self._use_color = self._supports_color()
         self.transcript = TranscriptRenderer(
+            model_name=self._resolve_model_name(),
             loaded_skills_count=len(SkillService.list_available_skill_docs()),
             stream_enabled=self._stream_live,
         )
@@ -303,6 +312,7 @@ class TeamBotTuiApp:
         self._print_startup()
         while True:
             try:
+                discard_pending_stdin()
                 raw = input(self._style("❯  ", "prompt")).strip()
             except EOFError:
                 print()
@@ -353,80 +363,86 @@ class TeamBotTuiApp:
         if event is None:
             return
 
-        self._status = "running"
-        self.transcript.begin_task(raw)
-        print()
+        with suppress_stdin_echo():
+            self._status = "running"
+            self.transcript.begin_task(raw)
+            print()
 
-        thinking_task: asyncio.Task[None] | None = None
-        thinking_stop = asyncio.Event()
-        if self._can_animate_thinking():
-            thinking_task = asyncio.create_task(self._animate_thinking(thinking_stop))
-        else:
-            self._print_line("✻ Thinking...", kind="thinking")
-        thinking_shown = True
-        final_stream_open = False
-        final_buffer: list[str] = []
-        pending_final_text = ""
-        streamed_any = False
+            thinking_task: asyncio.Task[None] | None = None
+            thinking_stop = asyncio.Event()
+            if self._can_animate_thinking():
+                thinking_task = asyncio.create_task(self._animate_thinking(thinking_stop))
+            else:
+                self._print_line("✻ Thinking...", kind="thinking")
+            thinking_shown = True
+            final_stream_open = False
+            final_buffer: list[str] = []
+            pending_final_text = ""
+            streamed_any = False
 
-        try:
-            async for runtime_event in self.service.stream_event(event):
-                streamed_any = True
-                self.transcript.handle_event(runtime_event)
+            try:
+                async for runtime_event in self.service.stream_event(event):
+                    streamed_any = True
+                    self.transcript.handle_event(runtime_event)
 
-                if runtime_event.event_type in {"thinking", "thinking_delta"}:
-                    if not thinking_shown:
-                        self._print_line("✻ Thinking...", kind="thinking")
-                        thinking_shown = True
-                    continue
-
-                if runtime_event.event_type == "tool_call":
-                    await self._stop_thinking_animation(thinking_stop, thinking_task)
-                    self._print_line(
-                        f"⎿ {self._format_trace_action(runtime_event.action_name, runtime_event.action_input, runtime_event.blocked)}",
-                        kind="tool",
-                    )
-                    continue
-
-                if runtime_event.event_type == "tool_result":
-                    await self._stop_thinking_animation(thinking_stop, thinking_task)
-                    observation = self._truncate(runtime_event.observation or runtime_event.text or "(empty)")
-                    self._print_line(f"  {observation}", kind="result")
-                    continue
-
-                if runtime_event.event_type == "final_delta":
-                    token = runtime_event.text
-                    if not token:
+                    if runtime_event.event_type in {"thinking", "thinking_delta"}:
+                        if not thinking_shown:
+                            self._print_line("✻ Thinking...", kind="thinking")
+                            thinking_shown = True
                         continue
-                    await self._stop_thinking_animation(thinking_stop, thinking_task)
-                    if not final_stream_open:
-                        print(self._style("⏺ ", "final"), end="", flush=True)
-                        final_stream_open = True
-                    print(self._style(token, "final"), end="", flush=True)
-                    final_buffer.append(token)
-                    continue
 
-                if runtime_event.event_type == "final_text":
-                    pending_final_text = runtime_event.text
-                    continue
+                    if runtime_event.event_type == "tool_call":
+                        await self._stop_thinking_animation(thinking_stop, thinking_task)
+                        self._print_line(
+                            f"⎿ {self._format_trace_action(runtime_event.action_name, runtime_event.action_input, runtime_event.blocked)}",
+                            kind="tool",
+                        )
+                        continue
 
-                if runtime_event.event_type == "run_completed":
-                    await self._stop_thinking_animation(thinking_stop, thinking_task)
-                    final_text = (runtime_event.text or pending_final_text or "".join(final_buffer)).strip()
-                    if final_stream_open:
-                        print()
-                    elif final_text:
-                        self._print_line(f"⏺ {final_text}", kind="final")
-                    break
-        finally:
-            await self._stop_thinking_animation(thinking_stop, thinking_task)
+                    if runtime_event.event_type == "tool_result":
+                        await self._stop_thinking_animation(thinking_stop, thinking_task)
+                        observation = self._truncate(runtime_event.observation or runtime_event.text or "(empty)")
+                        self._print_line(f"  {observation}", kind="result")
+                        continue
 
-        if not streamed_any:
-            reply = await self.service.process_event(event)
-            self._render_followup(reply)
+                    if runtime_event.event_type == "memory_compacted":
+                        await self._stop_thinking_animation(thinking_stop, thinking_task)
+                        self._print_line(f"  {(runtime_event.text or 'Compacted summary').strip()}", kind="result")
+                        continue
 
-        print()
-        self._status = "ready"
+                    if runtime_event.event_type == "final_delta":
+                        token = runtime_event.text
+                        if not token:
+                            continue
+                        await self._stop_thinking_animation(thinking_stop, thinking_task)
+                        if not final_stream_open:
+                            print(self._style("⏺ ", "final"), end="", flush=True)
+                            final_stream_open = True
+                        print(self._style(token, "final"), end="", flush=True)
+                        final_buffer.append(token)
+                        continue
+
+                    if runtime_event.event_type == "final_text":
+                        pending_final_text = runtime_event.text
+                        continue
+
+                    if runtime_event.event_type == "run_completed":
+                        await self._stop_thinking_animation(thinking_stop, thinking_task)
+                        final_text = (runtime_event.text or pending_final_text or "".join(final_buffer)).strip()
+                        if final_stream_open:
+                            print()
+                        elif final_text:
+                            self._print_line(f"⏺ {final_text}", kind="final")
+                        break
+            finally:
+                await self._stop_thinking_animation(thinking_stop, thinking_task)
+
+            if not streamed_any:
+                reply = await self.service.process_event(event)
+                self._render_followup(reply)
+
+            print()
+            self._status = "ready"
 
     def _render_followup(self, reply: OutboundReply) -> None:
         if reply.execution_trace:
@@ -562,6 +578,21 @@ class TeamBotTuiApp:
         term = os.getenv("TERM", "")
         return sys.stdout.isatty() and term.lower() != "dumb"
 
+    def _resolve_model_name(self) -> str | None:
+        provider_manager = getattr(self.service, "provider_manager", None)
+        if provider_manager is None or not provider_manager.has_profile(PROFILE_AGENT):
+            fallback = os.getenv("AGENT_MODEL", "").strip()
+            return fallback or None
+        try:
+            binding = provider_manager.settings.get_profile_binding(PROFILE_AGENT)
+        except Exception:
+            fallback = os.getenv("AGENT_MODEL", "").strip()
+            return fallback or None
+        if not binding.endpoints:
+            fallback = os.getenv("AGENT_MODEL", "").strip()
+            return fallback or None
+        return binding.endpoints[0].model
+
     @staticmethod
     def _format_trace_action(
         action_name: str,
@@ -600,7 +631,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="TeamBot terminal workbench")
     parser.add_argument("--team-id", default="T1")
     parser.add_argument("--channel-id", default="C1")
-    parser.add_argument("--thread-ts", default="1710000000.0001")
+    parser.add_argument("--thread-ts", default=None)
     parser.add_argument("--user-id", default="U1")
     parser.add_argument(
         "--tools-profile",

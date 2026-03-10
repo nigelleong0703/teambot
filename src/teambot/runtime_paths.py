@@ -23,6 +23,14 @@ def get_agent_work_dir(agent_home: str | Path | None = None) -> Path:
     return get_agent_home(agent_home) / "work"
 
 
+def get_agent_state_dir(agent_home: str | Path | None = None) -> Path:
+    return get_agent_home(agent_home) / "state"
+
+
+def get_agent_store_db_path(agent_home: str | Path | None = None) -> Path:
+    return get_agent_state_dir(agent_home) / "teambot.sqlite"
+
+
 def get_platform_root(agent_home: str | Path | None = None) -> Path:
     home = get_agent_home(agent_home)
     if home.parent.name == "agents":
@@ -76,5 +84,6 @@ def ensure_agent_home_layout(agent_home: str | Path | None = None) -> Path:
     home = get_agent_home(agent_home)
     (home / "system").mkdir(parents=True, exist_ok=True)
     (home / "work").mkdir(parents=True, exist_ok=True)
+    (home / "state").mkdir(parents=True, exist_ok=True)
     (home / "skills").mkdir(parents=True, exist_ok=True)
     return home

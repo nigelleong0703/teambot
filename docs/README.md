@@ -27,11 +27,18 @@ System-managed paths (do not reorganize here):
   - Practical next-step execution plan after major runtime changes.
 
 Current runtime terminology baseline:
+- `config/`: repo-tracked runtime JSON config such as provider model definitions and profile bindings
 - `agent`: the `agent/` package contains the ReAct loop, runtime owner, prompt assembly, and application service
-- Canonical target structure is `agent/actions/providers/skills/mcp/contracts/domain/app`
+- Canonical target structure is `agent/actions/memory/providers/skills/mcp/contracts/domain/app`
 - `tools`: executable model-callable operations
 - `event_handlers`: deterministic runtime handlers (e.g. reaction and `/todo`)
 - `skills`: active skill packs loaded as context for the reasoner, not executable actions
+- `memory`: session-scoped transcript/summary management, long-term memory loading, and reasoner context assembly
+- prior conversation turns and rolling summary state are stored in `domain/store`, then assembled into reasoner context by `memory/`
+- runtime conversation state is persisted under `AGENT_HOME/state/teambot.sqlite`
+- provider config is layered:
+  - canonical repo config via `config/config.json`, referenced by `RUNTIME_CONFIG_FILE`
+  - legacy env overrides via `AGENT_*` / `SUMMARY_*` and related runtime env groups
 - CLI uses a single transcript view by default:
   - `Task / Thinking / Tool / Result / Final`
   - `debug` and `stream` are visibility controls, not user-facing modes

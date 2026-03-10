@@ -12,8 +12,10 @@ Canonical structure reference: `docs/code-structure.md`.
 - `src/teambot/actions`
   - Executable actions.
   - Includes model-callable tools and deterministic event handlers.
+- `src/teambot/memory`
+  - Session memory management, long-term memory loading, and rolling-summary compaction policy.
 - `src/teambot/providers`
-  - Provider manager and provider client implementations.
+  - Model-definition loading, profile binding assembly, provider manager, and provider client implementations.
 - `src/teambot/skills`
   - Skill docs lifecycle and reasoner context assembly.
 - `src/teambot/mcp`
@@ -22,21 +24,25 @@ Canonical structure reference: `docs/code-structure.md`.
   - API/CLI entrypoints and composition root.
 - `src/teambot/domain`
   - TeamBot core objects and storage models.
+- `config/`
+  - Repo-tracked runtime JSON config only.
+  - No executable code.
 
 ## 2. Allowed Dependency Direction
 
 Allowed:
 
-- `app -> agent/actions/providers/skills/mcp/domain/contracts`
-- `agent -> actions/providers/skills/mcp/domain/contracts`
+- `app -> agent/actions/memory/providers/skills/mcp/domain/contracts`
+- `agent -> actions/memory/providers/skills/mcp/domain/contracts`
 - `actions -> domain/contracts`
+- `memory -> domain/contracts`
 - `providers -> contracts`
 - `skills -> domain/contracts`
 - `mcp -> actions/providers/contracts`
 
 Disallowed:
 
-- `domain -> agent/actions/providers/skills/mcp`
+- `domain -> agent/actions/memory/providers/skills/mcp`
 - `providers -> agent`
 - `contracts -> runtime implementations`
 - `contracts -> provider SDK wrappers`
@@ -52,6 +58,7 @@ Disallowed:
 - Internal imports should target implementation modules directly.
 - New ReAct loop behavior belongs under `agent/`.
 - New tools or deterministic handlers belong under `actions/`.
+- New session-memory management, memory-context assembly, or compaction logic belongs under `memory/`.
 - New provider integrations belong under `providers/`.
 - New skill lifecycle/context code belongs under `skills/`.
 - New MCP bridge/config/runtime code belongs under `mcp/`.

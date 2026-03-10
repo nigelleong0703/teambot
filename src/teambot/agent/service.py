@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Callable
 
-from ..domain.models import InboundEvent, OutboundReply, ReplyTarget, RuntimeEvent
+from ..domain.models import AgentState, InboundEvent, OutboundReply, ReplyTarget, RuntimeEvent
 from ..domain.store import MemoryStore
 from ..actions.registry import PluginHost
 from ..actions.event_handlers.registry import EventHandlerRegistry
@@ -11,6 +11,13 @@ from ..actions.tools.registry import ToolRegistry
 from ..mcp.manager import MCPClientManager
 from ..providers.manager import ProviderManager
 from ..skills import SkillRegistry
+from ..memory import (
+    CharBudgetMemoryPolicy,
+    MemoryContextAssembler,
+    ProviderBackedSummaryGenerator,
+    SessionCompactionResult,
+    SessionMemoryManager,
+)
 from ..runtime_paths import resolve_dynamic_skills_dir
 from .runtime import TeamBotRuntime
 from .state import build_initial_state
@@ -25,6 +32,7 @@ class AgentService:
         strict_tools_config: bool = False,
     ) -> None:
         self.store = MemoryStore()
+        self.memory_policy = CharBudgetMemoryPolicy()
         self.dynamic_skills_dir = resolve_dynamic_skills_dir()
         self.provider_manager: ProviderManager | None
         self.registry: SkillRegistry
@@ -42,6 +50,8 @@ class AgentService:
             strict_tools_config=strict_tools_config,
         )
         self._sync_runtime_handles()
+        self.memory_context_assembler = MemoryContextAssembler()
+        self.session_memory = self._build_session_memory_manager()
 
     def set_model_event_listener(
         self,
@@ -60,9 +70,21 @@ class AgentService:
         self.policy_gate = self._agent.policy_gate
         self.graph = self._agent.graph
 
+    def _build_session_memory_manager(self) -> SessionMemoryManager:
+        return SessionMemoryManager(
+            store=self.store,
+            policy=self.memory_policy,
+            summary_generator=ProviderBackedSummaryGenerator(
+                reasoner=self.provider_manager,
+                max_summary_chars=self.memory_policy.summary_max_chars,
+                max_turn_text_chars=self.memory_policy.summary_turn_max_chars,
+            ),
+        )
+
     def reload_runtime(self) -> None:
         self._agent.reload_runtime()
         self._sync_runtime_handles()
+        self.session_memory = self._build_session_memory_manager()
 
     @staticmethod
     def _build_reply(
@@ -82,6 +104,39 @@ class AgentService:
             execution_trace=list(result.get("execution_trace") or []),
         )
 
+    async def _build_runtime_state(
+        self,
+        *,
+        event: InboundEvent,
+        reply_target: ReplyTarget,
+    ) -> tuple[ReplyTarget, AgentState]:
+        session_context = await self.session_memory.load_context(reply_target)
+        memory_context = self.memory_context_assembler.build(
+            session_context=session_context,
+        )
+        state = build_initial_state(
+            event=event,
+            conversation_key=session_context.conversation_key,
+            memory_context=memory_context,
+        )
+        return session_context.reply_target, state
+
+    @staticmethod
+    def _compaction_runtime_event(
+        *,
+        conversation_key: str,
+        current_step: int,
+        result: SessionCompactionResult,
+    ) -> RuntimeEvent | None:
+        if not result.compacted:
+            return None
+        return RuntimeEvent(
+            run_id=conversation_key,
+            step=current_step,
+            event_type="memory_compacted",
+            text="Compacted summary",
+        )
+
     async def process_event(self, event: InboundEvent) -> OutboundReply:
         existing = await self.store.get_processed_event(event.event_id)
         if existing is not None:
@@ -92,23 +147,18 @@ class AgentService:
             channel_id=event.channel_id,
             thread_ts=event.thread_ts,
         )
-        conversation = await self.store.upsert_conversation(target)
-
-        state = build_initial_state(
-            event=event,
-            conversation_key=conversation.conversation_key,
-        )
+        reply_target, state = await self._build_runtime_state(event=event, reply_target=target)
         result = self._agent.invoke(state)
         reply = self._build_reply(
             event=event,
-            conversation_key=conversation.conversation_key,
-            reply_target=conversation.reply_target,
+            conversation_key=str(state["conversation_key"]),
+            reply_target=reply_target,
             result=result,
         )
 
         user_text = event.text or f"reaction:{event.reaction}"
-        await self.store.append_turns(
-            conversation_key=conversation.conversation_key,
+        await self.session_memory.append_turns(
+            conversation_key=str(state["conversation_key"]),
             user_text=user_text,
             assistant_text=reply.text,
         )
@@ -131,16 +181,13 @@ class AgentService:
             channel_id=event.channel_id,
             thread_ts=event.thread_ts,
         )
-        conversation = await self.store.upsert_conversation(target)
-        state = build_initial_state(
-            event=event,
-            conversation_key=conversation.conversation_key,
-        )
+        reply_target, state = await self._build_runtime_state(event=event, reply_target=target)
 
         queue: asyncio.Queue[RuntimeEvent | object] = asyncio.Queue()
         sentinel = object()
         loop = asyncio.get_running_loop()
         current_step = {"value": 1}
+        pending_completion = {"event": None}
 
         previous_listener = None
         if self.provider_manager is not None:
@@ -149,6 +196,9 @@ class AgentService:
         def _emit(runtime_event: RuntimeEvent) -> None:
             if runtime_event.step > 0:
                 current_step["value"] = runtime_event.step
+            if runtime_event.event_type == "run_completed":
+                pending_completion["event"] = runtime_event
+                return
             loop.call_soon_threadsafe(queue.put_nowait, runtime_event)
 
         def _provider_event_listener(name: str, payload: dict[str, Any]) -> None:
@@ -160,7 +210,7 @@ class AgentService:
                     loop.call_soon_threadsafe(
                         queue.put_nowait,
                         RuntimeEvent(
-                            run_id=conversation.conversation_key,
+                            run_id=str(state["conversation_key"]),
                             step=current_step["value"],
                             event_type="thinking_delta",
                             text=token,
@@ -172,7 +222,7 @@ class AgentService:
                     loop.call_soon_threadsafe(
                         queue.put_nowait,
                         RuntimeEvent(
-                            run_id=conversation.conversation_key,
+                            run_id=str(state["conversation_key"]),
                             step=current_step["value"],
                             event_type="final_delta",
                             text=token,
@@ -191,16 +241,26 @@ class AgentService:
                 )
                 reply = self._build_reply(
                     event=event,
-                    conversation_key=conversation.conversation_key,
-                    reply_target=conversation.reply_target,
+                    conversation_key=str(state["conversation_key"]),
+                    reply_target=reply_target,
                     result=result,
                 )
                 user_text = event.text or f"reaction:{event.reaction}"
-                await self.store.append_turns(
-                    conversation_key=conversation.conversation_key,
+                compaction = await self.session_memory.append_turns(
+                    conversation_key=str(state["conversation_key"]),
                     user_text=user_text,
                     assistant_text=reply.text,
                 )
+                compaction_event = self._compaction_runtime_event(
+                    conversation_key=str(state["conversation_key"]),
+                    current_step=current_step["value"],
+                    result=compaction,
+                )
+                if compaction_event is not None:
+                    _emit(compaction_event)
+                completed_event = pending_completion["event"]
+                if isinstance(completed_event, RuntimeEvent):
+                    loop.call_soon_threadsafe(queue.put_nowait, completed_event)
                 await self.store.save_processed_event(event.event_id, reply)
                 return reply
             finally:

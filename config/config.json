@@ -1,0 +1,43 @@
+{
+  "providers": {
+    "models": {
+      "agent_default": {
+        "provider": "anthropic",
+        "model": "MiniMax-M2.5",
+        "base_url": "https://api.minimaxi.com/anthropic",
+        "api_key": "${ANTHROPIC_API_KEY}",
+        "timeout_seconds": 20
+      },
+      "summary_default": {
+        "provider": "anthropic",
+        "model": "MiniMax-M2.5",
+        "base_url": "https://api.minimaxi.com/anthropic",
+        "api_key": "${ANTHROPIC_API_KEY}",
+        "timeout_seconds": 20
+      }
+    },
+    "profiles": {
+      "agent": "agent_default",
+      "summary": "summary_default"
+    }
+  },
+  "tools": {
+    "profile": "external_operation",
+    "namesake_strategy": "skip",
+    "enable_echo_tool": false,
+    "enable_exec_alias": false,
+    "enable": [],
+    "disable": [],
+    "exec_timeout_seconds": 20,
+    "browser_timeout_seconds": 10,
+    "tool_output_max_chars": 4000
+  },
+  "policy": {
+    "allow_high_risk_actions": true,
+    "high_risk_allowed_actions": []
+  },
+  "mcp": {
+    "enabled": false,
+    "servers": []
+  }
+}

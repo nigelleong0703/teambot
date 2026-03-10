@@ -4,6 +4,8 @@ import json
 import os
 from dataclasses import dataclass, field
 
+from ..runtime_config import get_runtime_config_section
+
 
 @dataclass(frozen=True)
 class MCPToolConfig:
@@ -30,21 +32,25 @@ def _env_true(name: str) -> bool:
 
 
 def load_mcp_runtime_config() -> MCPRuntimeConfig:
-    enabled = _env_true("MCP_ENABLED")
+    runtime_mcp = get_runtime_config_section("mcp")
+    enabled = bool(runtime_mcp.get("enabled", False))
+    if "MCP_ENABLED" in os.environ:
+        enabled = _env_true("MCP_ENABLED")
     if not enabled:
         return MCPRuntimeConfig(enabled=False, servers=[])
 
     raw = os.getenv("MCP_SERVERS_JSON", "").strip()
-    if not raw:
-        return MCPRuntimeConfig(enabled=True, servers=[])
-
-    try:
-        parsed = json.loads(raw)
-    except Exception:
-        return MCPRuntimeConfig(enabled=True, servers=[])
-
-    if not isinstance(parsed, list):
-        return MCPRuntimeConfig(enabled=True, servers=[])
+    if raw:
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return MCPRuntimeConfig(enabled=True, servers=[])
+        if not isinstance(parsed, list):
+            return MCPRuntimeConfig(enabled=True, servers=[])
+    else:
+        parsed = runtime_mcp.get("servers", [])
+        if not isinstance(parsed, list):
+            return MCPRuntimeConfig(enabled=True, servers=[])
 
     servers: list[MCPServerConfig] = []
     for server_raw in parsed:

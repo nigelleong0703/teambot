@@ -4,11 +4,14 @@ from .base import (
     ProviderConfigError,
     ProviderEndpoint,
     ProviderInvocationError,
+    ProviderProfileBinding,
     ProviderRoleBinding,
     ProviderSettings,
 )
 from .config import load_provider_settings_from_env
 from .registry import (
+    PROFILE_AGENT,
+    PROFILE_SUMMARY,
     ROLE_AGENT,
     SUPPORTED_PROVIDERS,
     default_base_url_for_provider,
@@ -34,8 +37,11 @@ __all__ = [
     "ProviderConfigError",
     "ProviderEndpoint",
     "ProviderInvocationError",
+    "ProviderProfileBinding",
     "ProviderRoleBinding",
     "ProviderSettings",
+    "PROFILE_AGENT",
+    "PROFILE_SUMMARY",
     "ROLE_AGENT",
     "load_provider_settings_from_env",
     "SUPPORTED_PROVIDERS",

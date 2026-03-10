@@ -6,7 +6,7 @@ from ..actions.event_handlers.registry import EventHandlerRegistry
 from ..actions.tools.registry import ToolRegistry
 from ..mcp.manager import MCPClientManager
 from ..providers.manager import (
-    ROLE_AGENT,
+    PROFILE_AGENT,
     ProviderManager,
     build_default_provider_manager,
 )
@@ -110,7 +110,7 @@ class TeamBotRuntime:
         listener: Callable[[str, dict[str, Any]], None] | None,
     ) -> None:
         manager = self.provider_manager
-        if manager is None or not manager.has_role(ROLE_AGENT):
+        if manager is None or not manager.has_profile(PROFILE_AGENT):
             return
         manager.set_event_listener(listener)
 

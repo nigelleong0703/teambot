@@ -69,6 +69,20 @@ def test_cli_registers_model_listener_for_transcript_view() -> None:
     assert service.listener is not None
 
 
+def test_cli_generates_new_thread_ts_when_not_provided() -> None:
+    service = _ServiceStub()
+    cli = TeamBotCli(
+        team_id="T1",
+        channel_id="C1",
+        thread_ts=None,
+        user_id="U1",
+        service=service,  # type: ignore[arg-type]
+    )
+
+    assert cli.thread_ts
+    assert cli.thread_ts != "1710000000.0001"
+
+
 def test_cli_renders_transcript_sections(capsys) -> None:
     service = _ServiceStub()
     cli = _build_cli(service)
@@ -185,6 +199,7 @@ async def test_cli_renders_runtime_event_timeline(capsys) -> None:
             action_name="get_current_time",
             observation="2026-03-07 21:30:00",
         ),
+        RuntimeEvent(run_id="run-1", step=1, event_type="memory_compacted", text="Compacted summary"),
         RuntimeEvent(run_id="run-1", step=2, event_type="thinking", text="Now I can answer"),
         RuntimeEvent(run_id="run-1", step=2, event_type="run_completed", text="It is 9:30 PM."),
     ]
@@ -196,6 +211,8 @@ async def test_cli_renders_runtime_event_timeline(capsys) -> None:
     assert "Step 1 · Thinking" in captured
     assert "Step 1 · Tool" in captured
     assert "Step 1 · Result" in captured
+    assert "Step 1 · Memory" in captured
+    assert "Compacted summary" in captured
     assert "Step 2 · Thinking" in captured
     assert "Step 2 · Final" in captured
     assert "It is 9:30 PM." in captured

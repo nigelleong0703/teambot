@@ -72,11 +72,17 @@
 - `src/teambot/mcp/*`
   MCP 配置、manager、tool bridge
 
+- `src/teambot/memory/*`
+  memory 层：把 session transcript / rolling summary / long-term memory 分层管理，再组装成 reasoner 可消费的上下文
+
 - `src/teambot/skills/*`
   skill docs lifecycle + reasoner skill-context assembly
 
 - `src/teambot/providers/*`
-  provider manager + client 实现（含 LangChain 适配）
+  provider manager + client 实现（含 LangChain 适配）；调用方通过命名 model profiles（如 `agent`、`summary`）拿到具体模型绑定
+
+- `config/*`
+  repo-tracked runtime config：canonical file 是 `config/config.json`
 
 - `src/teambot/actions/registry.py`
   `PluginHost`：唯一统一 action surface（tool / event_handler）
@@ -85,7 +91,22 @@
   runtime owner，负责把 registries 绑定成 `PluginHost` 后再交给 graph
 
 - `src/teambot/domain/store/memory_store.py`
-  内存态会话存储与幂等缓存
+  SQLite-backed transcript/summary state 与幂等缓存（`AGENT_HOME/state/teambot.sqlite`）
+
+- `src/teambot/memory/session.py`
+  `SessionMemoryManager`：session-scoped working memory owner，负责 transcript 读取、recent-turn 选择、rolling summary compaction
+
+- `src/teambot/memory/policy.py`
+  `CharBudgetMemoryPolicy`：共享的 session-context budget，recent turns 和 compaction 共用同一套 char budget
+
+- `src/teambot/memory/context.py`
+  `MemoryContextAssembler`：只负责把 session memory context 和 long-term memory 合并成 `recent_turns` / `conversation_summary` / `memory_system_prompt_suffix`
+
+- `src/teambot/memory/longterm.py`
+  `memory.md` 长期记忆加载器（默认读 `AGENT_HOME/system/memory.md`）
+
+- `src/teambot/memory/compaction.py`
+  rolling summary compaction engine；默认走 provider-backed summary，把超出 session char budget 的旧 turn 压成 `conversation_summary`；没有可用模型时就跳过 compact，不做自动 deterministic fallback
 
 - `src/teambot/domain/models.py`
   核心输入输出模型与 transcript event contract（`InboundEvent` / `OutboundReply` / `RuntimeEvent`）
@@ -99,6 +120,8 @@
 
 - `src/teambot/agent/prompts/system_prompt.py`
   - 从 `AGENT_HOME/system` 读取 `AGENTS.md`（required）+ `SOUL.md` + `PROFILE.md`
+- `src/teambot/memory/longterm.py`
+  - 可选再读取 `AGENT_HOME/system/memory.md`，作为 long-term memory system suffix
 - `src/teambot/actions/tools/builtin.py`
   - 读取 `TOOLS_PROFILE` / `TOOLS_NAMESAKE_STRATEGY`
   - 调用 `runtime_builder` 组装 builtin tool surface
@@ -126,15 +149,35 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
   - `langchain_openai.ChatOpenAI`
   - `langchain_anthropic.ChatAnthropic`
 
-调用链：`reason reasoner -> provider_manager.invoke_role_tools -> provider_client(langchain bind_tools)`
+调用链：`reason reasoner -> provider_manager.invoke_profile_tools(profile="agent") -> provider_client(langchain bind_tools)`
 
 ## 7. 关键行为规则（当前实现）
 
 - `reason` 优先级：`max-step` -> deterministic direct routes -> reasoner
+- `AgentService` 不再直接操作 transcript/compaction；session-scoped history 和 rolling summary 统一走 `SessionMemoryManager`
+- reasoner payload 现在除了当前输入和 `last_observation`，还会包含按同一套 char budget 选出来的 `recent_turns` 和可选 `conversation_summary`
+- long-term memory 通过独立 provider 读取 `memory.md`，再追加到 system prompt；它和 session memory 是分开的两层
+- provider 层现在按 `profile -> model_id -> model definition` 绑定工作；当前内置 profile 是 `agent` 和 `summary`
+- 配置分两层：
+  - model definitions：按 `model_id` 定义 provider、model、base_url、api_key 等
+  - profile bindings：`agent`、`summary`、`extract` 这类用途绑定到某个 `model_id`
+- 内置 `AGENT_*` / `SUMMARY_*` 只是快捷配置层；canonical 配置优先走单文件：
+  - `RUNTIME_CONFIG_FILE -> config/config.json`
+- `config/config.json` 里分 4 个 section：
+  - `providers`
+  - `tools`
+  - `policy`
+  - `mcp`
+- `config/config.json` 支持在字符串里写 `${ENV_VAR}`，loader 会在读取时展开；`$${ENV_VAR}` 表示字面量
+- `.env` 只保留文件路径与 secret：
+  - `RUNTIME_CONFIG_FILE`
+  - `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` 等
+- `MODEL_PROFILES_JSON` 仅保留兼容旧配置，不再是推荐入口
 - `react_done=true` 会直接走 `compose_reply`
 - `observe` 阶段只记录 tool observation；是否继续由下一轮 reasoner 是否继续发 tool call 决定
 - `observe` 产出的 `execution_trace` 现在包含 action input，供 CLI/API reply 做展示
 - runtime 还会发 `RuntimeEvent`，给 CLI/TUI 这种 transcript 客户端按 step 渲染
+- session memory 如果发生 compact，会额外发一个 `memory_compacted` runtime event，让 CLI/TUI 明确显示 `Compacted summary`
 - provider live token 也会在 `AgentService.stream_event(...)` 里被桥接成 runtime-level delta 事件：
   - `model_reasoning_token -> thinking_delta`
   - `model_token -> final_delta`
@@ -144,11 +187,13 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - `AGENT_HOME` 是 agent 的唯一工作根：
   - prompt 文件来自 `AGENT_HOME/system`
   - file/shell tools 默认在 `AGENT_HOME/work` 执行
+  - 会话与幂等缓存持久化在 `AGENT_HOME/state/teambot.sqlite`
   - reasoner skill docs 默认来自 `src/teambot/skills/packs`、`~/.teambot/skills`、`AGENT_HOME/skills`
 - CLI 始终使用 transcript 视图；`debug` 和 `stream` 是可见性开关，不是 mode
 - 当 provider 能流式返回 reasoning token 时，CLI 会在 `Thinking` 段里持续渲染
 - 当 provider 能流式返回最终文本时，CLI 会在 `Final (live)` 段里持续渲染，再避免把同一段 final answer 重复打印一遍
 - TUI 也消费同一条 event stream，但以普通 terminal transcript 输出，不接管 scroll；thinking 会收敛成一条 `✻ Thinking...`
+- CLI/TUI 在 active run 期间会临时关闭终端输入回显，并在显示新 prompt 前清空输入缓冲，避免运行中误输入的按键串到下一条消息或显示成 `^R` 之类的杂讯
 - skills 默认来自 builtin + shared + agent-local 三层；只注入 reasoner context；不会注册成 executable action
 - CLI/TUI 共用 slash command surface：`/help`、`/skills`、`/skills sync [--force]`、`/skills enable <name>`、`/skills disable <name>`、`/newthread`、`/stream on|off`、`/reaction <name>`、`/exit`
 - `/tools` 已从用户可见 slash surface 移除

@@ -10,6 +10,9 @@ from teambot.domain.models import AgentState
 def _state(user_text: str) -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
+        "recent_turns": [],
+        "conversation_summary": "",
+        "memory_system_prompt_suffix": "",
         "event_type": "message",
         "user_text": user_text,
         "reaction": None,
@@ -88,4 +91,3 @@ def test_tool_result_is_followed_by_next_reasoner_turn() -> None:
     assert result["react_done"] is True
     assert result["reply_text"] == "final after task"
     assert result["execution_trace"][0]["action"] == "get_current_time"
-

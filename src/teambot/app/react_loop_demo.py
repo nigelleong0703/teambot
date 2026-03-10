@@ -12,6 +12,7 @@ from ..agent.state import build_initial_state
 from .bootstrap import build_agent_service
 from ..domain.models import InboundEvent, ReplyTarget
 from ..domain.store import make_conversation_key
+from ..memory.models import MemoryContext
 
 EventCallback = Callable[[str, dict[str, Any]], None]
 
@@ -365,6 +366,7 @@ class ReactLoopDebugRunner:
         state = build_initial_state(
             event=event,
             conversation_key=make_conversation_key(target),
+            memory_context=MemoryContext(),
             react_max_steps=react_max_steps,
         )
         final_state = self.service.graph.invoke(state)
@@ -768,5 +770,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 

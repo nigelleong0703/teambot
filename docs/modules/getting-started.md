@@ -29,18 +29,77 @@ CLI and API startup now auto-load `.env` from the current working directory and 
 Shell-exported environment variables still win and are not overridden by `.env`.
 
 Important groups:
-- provider: `AGENT_PROVIDER`, `AGENT_MODEL`, `AGENT_API_KEY`, `AGENT_BASE_URL`
+- canonical runtime config file: `RUNTIME_CONFIG_FILE`
+- provider secrets: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
 - agent home: `AGENT_HOME`
-- tools: `TOOLS_PROFILE`, `TOOLS_NAMESAKE_STRATEGY`
-- mcp: `MCP_ENABLED`, `MCP_SERVERS_JSON`
-- policy: `ALLOW_HIGH_RISK_ACTIONS`, `HIGH_RISK_ALLOWED_ACTIONS`
+- optional legacy override envs: `AGENT_*`, `SUMMARY_*`, `TOOLS_*`, `MCP_*`, policy override envs
 
 `AGENT_HOME` is the agent's only working root. Runtime paths are derived from it:
 - prompt files: `AGENT_HOME/system/AGENTS.md`, `SOUL.md`, `PROFILE.md`
+- optional long-term memory file: `AGENT_HOME/system/memory.md`
 - tool working directory: `AGENT_HOME/work`
+- runtime store database: `AGENT_HOME/state/teambot.sqlite`
 - shared skill docs: `~/.teambot/skills`
 - agent-local skill docs: `AGENT_HOME/skills`
 - dynamic skill plugins: `AGENT_HOME/system/skills`
+
+Runtime config now has two paths:
+- canonical: store provider/tools/policy/mcp defaults in `config/config.json`, then point `.env` at that file
+- legacy override path: set built-in env groups directly when you need a machine-local override
+
+Example canonical `.env`:
+
+```env
+RUNTIME_CONFIG_FILE=./config/config.json
+ANTHROPIC_API_KEY=...
+```
+
+Example `config/config.json`:
+
+```json
+{
+  "providers": {
+    "models": {
+      "main_sonnet": {
+        "provider": "anthropic",
+        "model": "claude-sonnet",
+        "api_key": "${ANTHROPIC_API_KEY}"
+      },
+      "fast_haiku": {
+        "provider": "anthropic",
+        "model": "claude-haiku",
+        "api_key": "${ANTHROPIC_API_KEY}"
+      }
+    },
+    "profiles": {
+      "agent": "main_sonnet",
+      "summary": "fast_haiku",
+      "extract": "fast_haiku"
+    }
+  },
+  "tools": {
+    "profile": "external_operation",
+    "namesake_strategy": "skip",
+    "enable_echo_tool": false,
+    "enable_exec_alias": false,
+    "exec_timeout_seconds": 20,
+    "browser_timeout_seconds": 10,
+    "tool_output_max_chars": 4000
+  },
+  "policy": {
+    "allow_high_risk_actions": false,
+    "high_risk_allowed_actions": []
+  },
+  "mcp": {
+    "enabled": false,
+    "servers": []
+  }
+}
+```
+
+`config/config.json` supports `${ENV_VAR}` substitution inside string values. Use `$${ENV_VAR}` if you need a literal placeholder without expansion.
+
+Built-in env shortcuts remain supported for compatibility, but new setups should prefer `config/config.json` + `.env` secrets.
 
 ## 3) Run API
 

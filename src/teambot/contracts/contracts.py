@@ -73,7 +73,19 @@ class ModelToolInvocationResult:
 
 
 class ModelRoleInvoker(Protocol):
+    def has_profile(self, profile: str) -> bool:
+        ...
+
     def has_role(self, role: str) -> bool:
+        ...
+
+    def invoke_profile_json(
+        self,
+        *,
+        profile: str,
+        system_prompt: str,
+        payload: dict[str, Any],
+    ) -> ModelInvocationResult:
         ...
 
     def invoke_role_json(
@@ -85,6 +97,15 @@ class ModelRoleInvoker(Protocol):
     ) -> ModelInvocationResult:
         ...
 
+    def invoke_profile_text(
+        self,
+        *,
+        profile: str,
+        system_prompt: str,
+        user_message: str,
+    ) -> ModelTextInvocationResult:
+        ...
+
     def invoke_role_text(
         self,
         *,
@@ -92,6 +113,16 @@ class ModelRoleInvoker(Protocol):
         system_prompt: str,
         user_message: str,
     ) -> ModelTextInvocationResult:
+        ...
+
+    def invoke_profile_tools(
+        self,
+        *,
+        profile: str,
+        system_prompt: str,
+        payload: dict[str, Any],
+        tools: list[ModelToolSpec],
+    ) -> ModelToolInvocationResult:
         ...
 
     def invoke_role_tools(
@@ -103,4 +134,3 @@ class ModelRoleInvoker(Protocol):
         tools: list[ModelToolSpec],
     ) -> ModelToolInvocationResult:
         ...
-
