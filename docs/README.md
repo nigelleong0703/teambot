@@ -59,6 +59,8 @@ Current runtime terminology baseline:
 
 - `references/copaw-baseline.md`
   - CoPaw baseline notes used for parity alignment.
+- `references/claude-code-prompts-v2.1.47.md`
+  - Local binary extraction and reconstruction of Claude Code v2.1.47 prompt templates, including main-thread, alternate, and sub-agent prompt assembly.
 
 ## Archived Docs (historical context)
 
