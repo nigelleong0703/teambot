@@ -110,3 +110,4 @@ Disallowed:
 
 - Any structural change MUST update this file in the same change.
 - Other docs should link here instead of redefining structure rules.
+- Local development runs the repo directly from `src/` with `PYTHONPATH=src`; editable package installation is not part of the default workflow.

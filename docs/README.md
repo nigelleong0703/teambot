@@ -21,6 +21,7 @@ System-managed paths (do not reorganize here):
   - What TeamBot is, current feature set, use cases, and high-level module map.
 - `modules/getting-started.md`
   - Environment setup, `.env` groups, run commands, and test commands.
+  - Repo uses `requirements*.txt` plus `PYTHONPATH=src`; no editable package install path is required.
 - `modules/api-and-debug.md`
   - API endpoint list and local debug utilities.
 - `modules/post-change-next-steps.md`
