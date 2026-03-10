@@ -170,3 +170,10 @@ def test_provider_backed_summary_generator_uses_model_output() -> None:
     )
 
     assert "Current goal: preserve context." in summary
+
+
+def test_provider_backed_summary_generator_prompt_is_product_neutral() -> None:
+    prompt = ProviderBackedSummaryGenerator._system_prompt()
+
+    assert "TeamBot" not in prompt
+    assert "session-scoped working memory" in prompt
