@@ -315,7 +315,7 @@ class TeamBotTuiApp:
         self._print_startup()
         while True:
             try:
-                raw = self._read_user_input()
+                raw = await self._read_user_input()
             except EOFError:
                 print()
                 break
@@ -337,9 +337,9 @@ class TeamBotTuiApp:
                 print()
                 print("[interrupted]")
 
-    def _read_user_input(self) -> str:
+    async def _read_user_input(self) -> str:
         discard_pending_stdin()
-        return self._input_reader.read(self._style("❯  ", "prompt")).strip()
+        return (await self._input_reader.read(self._style("❯  ", "prompt"))).strip()
 
     async def _handle_command(self, raw: str) -> bool:
         action = dispatch_slash_command(

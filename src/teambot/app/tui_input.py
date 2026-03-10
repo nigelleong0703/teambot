@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 
 
 class TuiInputReader(Protocol):
-    def read(self, prompt_text: str) -> str:
+    async def read(self, prompt_text: str) -> str:
         ...
 
 
@@ -13,8 +14,8 @@ class TuiInputReader(Protocol):
 class PlainInputReader:
     input_func: Callable[[str], str] = input
 
-    def read(self, prompt_text: str) -> str:
-        return self.input_func(prompt_text)
+    async def read(self, prompt_text: str) -> str:
+        return await asyncio.to_thread(self.input_func, prompt_text)
 
 
 @dataclass
@@ -22,9 +23,9 @@ class PromptToolkitInputReader:
     session: Any
     ansi_factory: Callable[[str], Any] | None = None
 
-    def read(self, prompt_text: str) -> str:
+    async def read(self, prompt_text: str) -> str:
         prompt_arg = self.ansi_factory(prompt_text) if self.ansi_factory is not None else prompt_text
-        return self.session.prompt(prompt_arg)
+        return await self.session.prompt_async(prompt_arg)
 
 
 def build_tui_input_reader(*, use_color: bool) -> TuiInputReader:

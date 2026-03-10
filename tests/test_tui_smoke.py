@@ -44,7 +44,7 @@ class _InputReaderStub:
     responses: list[str]
     prompts: list[str]
 
-    def read(self, prompt_text: str) -> str:
+    async def read(self, prompt_text: str) -> str:
         self.prompts.append(prompt_text)
         if not self.responses:
             raise EOFError
@@ -55,9 +55,14 @@ class _FakePromptSession:
     def __init__(self, **kwargs) -> None:
         self.kwargs = kwargs
         self.prompts: list[object] = []
+        self.async_prompts: list[object] = []
 
     def prompt(self, prompt_text: object) -> str:
         self.prompts.append(prompt_text)
+        return "composed message"
+
+    async def prompt_async(self, prompt_text: object) -> str:
+        self.async_prompts.append(prompt_text)
         return "composed message"
 
 
@@ -187,7 +192,8 @@ def test_tui_status_line_is_workspace_path_only() -> None:
     assert "ready" not in status.lower()
 
 
-def test_tui_reads_from_injected_input_reader_and_preserves_multiline_text() -> None:
+@pytest.mark.asyncio
+async def test_tui_reads_from_injected_input_reader_and_preserves_multiline_text() -> None:
     reader = _InputReaderStub(
         responses=["  first line\nsecond line  "],
         prompts=[],
@@ -197,7 +203,7 @@ def test_tui_reads_from_injected_input_reader_and_preserves_multiline_text() -> 
         input_reader=reader,  # type: ignore[arg-type]
     )
 
-    raw = app._read_user_input()
+    raw = await app._read_user_input()
     event = app._build_event(raw)
 
     assert raw == "first line\nsecond line"
@@ -214,7 +220,8 @@ def test_build_tui_input_reader_falls_back_to_plain_input_without_prompt_toolkit
     assert isinstance(reader, tui_input.PlainInputReader)
 
 
-def test_build_tui_input_reader_uses_prompt_toolkit_multiline_session(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_build_tui_input_reader_uses_prompt_toolkit_multiline_session(monkeypatch) -> None:
     monkeypatch.setattr(
         tui_input,
         "_load_prompt_toolkit_modules",
@@ -224,8 +231,9 @@ def test_build_tui_input_reader_uses_prompt_toolkit_multiline_session(monkeypatc
     reader = tui_input.build_tui_input_reader(use_color=True)
 
     assert isinstance(reader, tui_input.PromptToolkitInputReader)
-    assert reader.read("❯  ") == "composed message"
-    assert isinstance(reader.session.prompts[0], _FakeANSI)
+    assert await reader.read("❯  ") == "composed message"
+    assert isinstance(reader.session.async_prompts[0], _FakeANSI)
+    assert reader.session.prompts == []
     assert reader.session.kwargs["multiline"] is True
     assert ("enter",) in reader.session.kwargs["key_bindings"].bindings
     assert ("escape", "enter") in reader.session.kwargs["key_bindings"].bindings
