@@ -11,12 +11,7 @@ source .venv/bin/activate
 
 python -m pip install -r requirements-dev.txt
 ```
-
-Optional editable install:
-
-```bash
-python -m pip install -e ".[dev]"
-```
+This repo runs directly from `src/` and does not require an editable package install.
 
 ## 2) Configure `.env`
 

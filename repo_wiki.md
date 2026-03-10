@@ -204,6 +204,8 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 
 ## 8. 常用调试入口
 
+- 环境安装：`python -m pip install -r requirements-dev.txt`
+- 当前仓库默认直接以 `PYTHONPATH=src` 运行，不依赖 `pip install -e .` 之类的 editable package 安装
 - API 启动：`PYTHONPATH=src uvicorn teambot.app.main:app --reload`
 - CLI：`PYTHONPATH=src python -m teambot.app.cli`
 - TUI：`PYTHONPATH=src python -m teambot.app.tui`
