@@ -53,6 +53,9 @@ class _PlannerStub:
 def _state(text: str) -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
+        "recent_turns": [],
+        "conversation_summary": "",
+        "memory_system_prompt_suffix": "",
         "event_type": "message",
         "user_text": text,
         "reaction": None,
@@ -108,4 +111,3 @@ def test_reason_uses_planner_final_decision() -> None:
 
     assert result["react_done"] is True
     assert result["reply_text"] == "Hello from planner final"
-

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, Field, model_validator
@@ -33,12 +34,19 @@ class InboundEvent(BaseModel):
 class ConversationTurn(BaseModel):
     role: Literal["user", "assistant"]
     text: str
+    seq: int | None = None
 
 
 class ConversationRecord(BaseModel):
     conversation_key: str
     reply_target: ReplyTarget
     history: list[ConversationTurn] = Field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ConversationSummaryState:
+    rolling_summary: str = ""
+    last_compacted_seq: int = 0
 
 
 class OutboundReply(BaseModel):
@@ -58,6 +66,7 @@ class RuntimeEvent(BaseModel):
         "task_started",
         "thinking",
         "thinking_delta",
+        "memory_compacted",
         "tool_call",
         "tool_result",
         "final_delta",
@@ -73,6 +82,9 @@ class RuntimeEvent(BaseModel):
 
 class AgentState(TypedDict):
     conversation_key: str
+    recent_turns: list[dict[str, str]]
+    conversation_summary: str
+    memory_system_prompt_suffix: str
     event_type: str
     user_text: str
     reaction: str | None

@@ -57,6 +57,9 @@ class _ReasonerProbe:
 def _state(user_text: str) -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
+        "recent_turns": [],
+        "conversation_summary": "",
+        "memory_system_prompt_suffix": "",
         "event_type": "message",
         "user_text": user_text,
         "reaction": None,
@@ -147,3 +150,52 @@ def test_reasoner_tool_schema_excludes_skills_and_event_handlers() -> None:
     assert "brainstorming" not in tool_names
     assert "create_task" not in tool_names
     assert "handle_reaction" not in tool_names
+
+
+def test_reasoner_request_includes_bounded_recent_conversation_turns() -> None:
+    tools = ToolRegistry()
+    tools.register(
+        ToolManifest(name="get_current_time", description="time tool"),
+        lambda _state: {"message": "time:ok"},
+    )
+    reasoner = _ReasonerProbe()
+    graph = build_graph(SkillRegistry(), tool_registry=tools, reasoner=reasoner)
+
+    state = _state("what changed?")
+    state["recent_turns"] = [
+        {"role": "user", "text": "first question"},
+        {"role": "assistant", "text": "first answer"},
+        {"role": "user", "text": "x" * 500},
+    ]
+
+    result = graph.invoke(state)
+
+    assert result["reply_text"] == "reasoner-final"
+    assert reasoner.last_payload is not None
+    assert reasoner.last_payload["recent_turns"][0] == {
+        "role": "user",
+        "text": "first question",
+    }
+    assert len(reasoner.last_payload["recent_turns"]) == 3
+    assert reasoner.last_payload["recent_turns"][-1]["text"] == "x" * 500
+
+
+def test_reasoner_request_includes_conversation_summary_and_long_term_memory_suffix() -> None:
+    tools = ToolRegistry()
+    tools.register(
+        ToolManifest(name="get_current_time", description="time tool"),
+        lambda _state: {"message": "time:ok"},
+    )
+    reasoner = _ReasonerProbe()
+    graph = build_graph(SkillRegistry(), tool_registry=tools, reasoner=reasoner)
+
+    state = _state("what should we keep?")
+    state["conversation_summary"] = "Earlier turns agreed to keep the SQLite-backed transcript store."
+    state["memory_system_prompt_suffix"] = "Long-term memory:\n- Always keep diffs small."
+
+    result = graph.invoke(state)
+
+    assert result["reply_text"] == "reasoner-final"
+    assert reasoner.last_payload is not None
+    assert reasoner.last_payload["conversation_summary"] == state["conversation_summary"]
+    assert "Long-term memory" in reasoner.last_system_prompt

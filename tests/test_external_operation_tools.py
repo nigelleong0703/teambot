@@ -14,6 +14,9 @@ from teambot.domain.models import AgentState
 def _state(*, user_text: str = "hello") -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
+        "recent_turns": [],
+        "conversation_summary": "",
+        "memory_system_prompt_suffix": "",
         "event_type": "message",
         "user_text": user_text,
         "reaction": None,

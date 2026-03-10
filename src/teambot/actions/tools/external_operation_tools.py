@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from ...domain.models import AgentState
 from ...runtime_paths import get_agent_work_dir
+from .config import load_runtime_tool_limits
 
 _DEFAULT_EXEC_TIMEOUT_SECONDS = 20
 _DEFAULT_BROWSER_TIMEOUT_SECONDS = 10
@@ -56,7 +57,7 @@ def _to_int(value: object, default: int) -> int:
 
 
 def _truncate(text: str) -> str:
-    max_chars = _to_int(os.getenv("TOOL_OUTPUT_MAX_CHARS"), _DEFAULT_OUTPUT_MAX_CHARS)
+    _, _, max_chars = load_runtime_tool_limits()
     if max_chars <= 0:
         return text
     if len(text) <= max_chars:
@@ -195,9 +196,10 @@ def execute_shell_command(state: AgentState) -> dict[str, object]:
     if not command:
         return {"message": "Error: `command` is required.", "error": True}
 
+    default_exec_timeout, _, _ = load_runtime_tool_limits()
     timeout_seconds = _to_int(
-        params.get("timeout_seconds") or os.getenv("EXEC_TIMEOUT_SECONDS"),
-        _DEFAULT_EXEC_TIMEOUT_SECONDS,
+        params.get("timeout_seconds"),
+        default_exec_timeout or _DEFAULT_EXEC_TIMEOUT_SECONDS,
     )
     if timeout_seconds <= 0:
         timeout_seconds = _DEFAULT_EXEC_TIMEOUT_SECONDS
@@ -256,9 +258,10 @@ def browser_use(state: AgentState) -> dict[str, object]:
     if parsed.scheme not in {"http", "https"}:
         return {"message": f"Error: Unsupported URL scheme in {url}.", "error": True}
 
+    _, default_browser_timeout, _ = load_runtime_tool_limits()
     timeout_seconds = _to_int(
-        params.get("timeout_seconds") or os.getenv("BROWSER_TIMEOUT_SECONDS"),
-        _DEFAULT_BROWSER_TIMEOUT_SECONDS,
+        params.get("timeout_seconds"),
+        default_browser_timeout or _DEFAULT_BROWSER_TIMEOUT_SECONDS,
     )
     if timeout_seconds <= 0:
         timeout_seconds = _DEFAULT_BROWSER_TIMEOUT_SECONDS

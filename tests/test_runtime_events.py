@@ -8,7 +8,14 @@ import pytest
 from teambot.agent.service import AgentService
 from teambot.agent.graph import build_graph
 from teambot.contracts.contracts import ModelTextInvocationResult, ModelToolCall, ModelToolInvocationResult
-from teambot.domain.models import AgentState, InboundEvent, OutboundReply, ReplyTarget, RuntimeEvent
+from teambot.domain.models import (
+    AgentState,
+    InboundEvent,
+    OutboundReply,
+    ReplyTarget,
+    RuntimeEvent,
+)
+from teambot.memory.models import SessionCompactionResult
 from teambot.actions.tools.registry import ToolManifest, ToolRegistry
 from teambot.skills.registry import SkillRegistry
 
@@ -91,6 +98,9 @@ class _ReasonerStub:
 def _state(text: str) -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
+        "recent_turns": [],
+        "conversation_summary": "",
+        "memory_system_prompt_suffix": "",
         "event_type": "message",
         "user_text": text,
         "reaction": None,
@@ -272,3 +282,100 @@ async def test_agent_service_stream_event_maps_provider_tokens_to_runtime_deltas
         ("model_reasoning_token", {"token": "Need"}),
         ("model_token", {"token": "Done"}),
     ]
+
+
+@pytest.mark.asyncio
+async def test_agent_service_stream_event_emits_memory_compacted_before_completion() -> None:
+    service = AgentService(tools_profile="minimal")
+    event = InboundEvent(
+        event_id="evt-stream-3",
+        event_type="message",
+        team_id="T1",
+        channel_id="C1",
+        thread_ts="1.22",
+        user_id="U1",
+        text="hello",
+    )
+
+    async def _append_turns(**_: Any) -> SessionCompactionResult:
+        return SessionCompactionResult(compacted=True, last_compacted_seq=2)
+
+    service.session_memory.append_turns = _append_turns  # type: ignore[method-assign]
+
+    def _invoke_stub(state: AgentState, runtime_event_listener=None):
+        assert runtime_event_listener is not None
+        runtime_event_listener(
+            RuntimeEvent(run_id=state["conversation_key"], step=1, event_type="thinking", text="Need")
+        )
+        runtime_event_listener(
+            RuntimeEvent(run_id=state["conversation_key"], step=1, event_type="run_completed", text="Done")
+        )
+        return {
+            **state,
+            "reply_text": "Done",
+            "selected_action": "",
+            "selected_skill": "",
+            "reasoning_note": "Need",
+            "execution_trace": [],
+        }
+
+    service._agent.invoke = _invoke_stub  # type: ignore[method-assign]
+
+    events = [item async for item in service.stream_event(event)]
+
+    assert [item.event_type for item in events] == [
+        "thinking",
+        "memory_compacted",
+        "run_completed",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_agent_service_injects_memory_context_into_state() -> None:
+    service = AgentService(tools_profile="minimal")
+    first_event = InboundEvent(
+        event_id="evt-history-1",
+        event_type="message",
+        team_id="T1",
+        channel_id="C1",
+        thread_ts="1.3",
+        user_id="U1",
+        text="hello there",
+    )
+    first_reply = await service.process_event(first_event)
+
+    captured_state: dict[str, Any] = {}
+
+    def _invoke_stub(state: AgentState, runtime_event_listener=None):
+        _ = runtime_event_listener
+        captured_state.update(state)
+        return {
+            **state,
+            "reply_text": "second reply",
+            "selected_action": "",
+            "selected_skill": "",
+            "reasoning_note": "history-aware",
+            "execution_trace": [],
+        }
+
+    service._agent.invoke = _invoke_stub  # type: ignore[method-assign]
+
+    second_event = InboundEvent(
+        event_id="evt-history-2",
+        event_type="message",
+        team_id="T1",
+        channel_id="C1",
+        thread_ts="1.3",
+        user_id="U1",
+        text="follow up",
+    )
+
+    reply = await service.process_event(second_event)
+
+    assert reply.text == "second reply"
+    assert captured_state["recent_turns"] == [
+        {"role": "user", "text": "hello there"},
+        {"role": "assistant", "text": " ".join(first_reply.text.split())},
+    ]
+    assert captured_state["conversation_summary"] == ""
+    assert captured_state["memory_system_prompt_suffix"] == ""

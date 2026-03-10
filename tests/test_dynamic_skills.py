@@ -7,6 +7,9 @@ from teambot.domain.models import AgentState
 def _state(text: str = "hi") -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
+        "recent_turns": [],
+        "conversation_summary": "",
+        "memory_system_prompt_suffix": "",
         "event_type": "message",
         "user_text": text,
         "reaction": None,
@@ -44,5 +47,4 @@ def test_dynamic_skill_plugin_is_loaded_and_invokable(tmp_path: Path) -> None:
     output = registry.invoke("echo_dynamic", _state("hello dynamic"))
 
     assert output["message"] == "echo:hello dynamic"
-
 

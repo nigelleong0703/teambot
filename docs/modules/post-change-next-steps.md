@@ -23,55 +23,57 @@ These items are no longer backlog items:
 5. Claude-style TUI baseline
    - Done
    - TUI is present and consumes the same runtime event stream as the CLI.
+6. Conversation history injection
+   - Done
+   - Prior stored turns are now passed into reasoner payload as bounded `recent_turns`.
+7. Modular memory context wiring
+   - Done
+   - Transcript access, long-term memory loading, and reasoner memory injection now flow through `src/teambot/memory/`.
+8. Provider-backed rolling-summary compaction
+   - Done
+   - Older turns are compacted into `conversation_state.rolling_summary` through the provider-backed session-memory path while recent raw turns remain directly injectable.
 
 ## Current Remaining Work
 
 This is the actual outstanding backlog based on the current canonical docs.
 
-1. Inject conversation history into reasoner payload
-   - Current gap:
-     - Conversation history is stored, but is not yet injected into the reasoner input.
-   - Why it matters:
-     - The agent still reasons mostly from the latest event plus last observation, which weakens multi-turn continuity.
-
-2. Replace `browser_use` fetch semantics with real browser automation
+1. Replace `browser_use` fetch semantics with real browser automation
    - Current gap:
      - Browser behavior is still not aligned with an OpenClaw-style `browser(action=...)` protocol.
    - Why it matters:
      - The current browser path is still too shallow for real browsing workflows.
 
-3. Harden execution policy beyond the current high-risk gate
+2. Harden execution policy beyond the current high-risk gate
    - Current gap:
      - Path sandbox rules, command budgets, and stronger per-tool governance are still missing.
    - Why it matters:
      - The current policy layer is useful, but still too coarse for stricter local execution control.
 
-4. Strengthen working-directory prompt contract
+3. Strengthen working-directory prompt contract
    - Current gap:
      - There is still no strict-mode enforcement that requires `AGENTS.md` (and optionally `SOUL.md`) before agent-model execution.
    - Why it matters:
      - Prompt discipline still depends too much on fallback behavior.
 
-5. Improve provider/runtime performance controls
+4. Improve provider/runtime performance controls
    - Current gap:
      - No first-class knobs yet for lower-latency reasoning modes such as lower step budgets, smaller answer budgets, or provider-specific low-reasoning controls.
    - Why it matters:
      - Latency is still mostly driven by provider/model choice, prompt size, and default ReAct loop depth.
 
-6. Expand platform capabilities
+5. Expand platform capabilities
    - Current gap:
-     - Channel adapters, cron scheduling, and memory compaction are still not implemented.
+     - Channel adapters, cron scheduling, and richer memory/fact infrastructure are still not implemented.
    - Why it matters:
      - The runtime core is in place, but the surrounding platform surface is still incomplete.
 
 ## Recommended Priority Order
 
-1. Conversation history injection
-2. Real browser automation protocol
-3. Execution policy hardening
-4. Provider/runtime performance controls
-5. Strict prompt contract
-6. Channels / cron / memory compaction
+1. Real browser automation protocol
+2. Execution policy hardening
+3. Provider/runtime performance controls
+4. Strict prompt contract
+5. Channels / cron / memory compaction
 
 ## Runtime Sanity Checklist
 

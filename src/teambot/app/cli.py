@@ -15,7 +15,8 @@ from ..actions.tools.profiles import (
 )
 from ..domain.models import InboundEvent, OutboundReply, RuntimeEvent
 from .bootstrap import build_agent_service
-from .slash_commands import SlashCommandAction, dispatch_slash_command, format_help_lines
+from .slash_commands import SlashCommandAction, dispatch_slash_command, format_help_lines, new_thread_ts
+from .terminal_io import discard_pending_stdin, suppress_stdin_echo
 
 
 class TeamBotCli:
@@ -24,7 +25,7 @@ class TeamBotCli:
         *,
         team_id: str,
         channel_id: str,
-        thread_ts: str,
+        thread_ts: str | None,
         user_id: str,
         stream_model_tokens: bool = False,
         show_model_payload: bool = False,
@@ -32,7 +33,7 @@ class TeamBotCli:
     ) -> None:
         self.team_id = team_id
         self.channel_id = channel_id
-        self.thread_ts = thread_ts
+        self.thread_ts = thread_ts or new_thread_ts()
         self.user_id = user_id
         self.service = service or build_agent_service()
         self._stream_model_tokens = stream_model_tokens
@@ -51,6 +52,7 @@ class TeamBotCli:
         self._print_help()
         while True:
             try:
+                discard_pending_stdin()
                 raw = input("task> ").strip()
             except EOFError:
                 print()
@@ -73,18 +75,19 @@ class TeamBotCli:
         if event is None:
             return
 
-        self._begin_task(raw)
+        with suppress_stdin_echo():
+            self._begin_task(raw)
 
-        streamed_any = False
-        if hasattr(self.service, "stream_event"):
-            async for runtime_event in self.service.stream_event(event):
-                streamed_any = True
-                self._render_runtime_event(runtime_event)
+            streamed_any = False
+            if hasattr(self.service, "stream_event"):
+                async for runtime_event in self.service.stream_event(event):
+                    streamed_any = True
+                    self._render_runtime_event(runtime_event)
 
-        if not streamed_any:
-            reply = await self.service.process_event(event)
-            self._close_live_lines()
-            self._render_followup(reply)
+            if not streamed_any:
+                reply = await self.service.process_event(event)
+                self._close_live_lines()
+                self._render_followup(reply)
 
     def _build_event(self, raw: str) -> InboundEvent | None:
         event_id = f"cli-{uuid.uuid4().hex[:12]}"
@@ -235,6 +238,11 @@ class TeamBotCli:
             print(f"- {self._truncate(event.observation or event.text or '(empty)')}")
             return
 
+        if event.event_type == "memory_compacted":
+            self._print_section(f"{step_prefix}Memory")
+            print(f"- {event.text or 'Compacted summary'}")
+            return
+
         if event.event_type == "final_text":
             self._pending_final_text = event.text
             return
@@ -370,7 +378,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--team-id", default="T1")
     parser.add_argument("--channel-id", default="C1")
-    parser.add_argument("--thread-ts", default="1710000000.0001")
+    parser.add_argument("--thread-ts", default=None)
     parser.add_argument("--user-id", default="U1")
     parser.add_argument("--stream-model-tokens", action="store_true")
     parser.add_argument("--show-model-payload", action="store_true")

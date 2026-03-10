@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from ..runtime_config import get_runtime_config_section
+
 
 @dataclass(frozen=True)
 class PolicyDecision:
@@ -22,15 +24,25 @@ class ExecutionPolicyGate:
 
     @classmethod
     def from_env(cls) -> "ExecutionPolicyGate":
-        allow_high_risk = os.getenv("ALLOW_HIGH_RISK_ACTIONS", "").strip().lower() in {
+        policy_config = get_runtime_config_section("policy")
+        allow_high_risk = bool(policy_config.get("allow_high_risk_actions", False))
+        runtime_allowlisted = policy_config.get("high_risk_allowed_actions", [])
+        allowlisted_actions = {
+            str(item).strip()
+            for item in runtime_allowlisted
+            if str(item).strip()
+        }
+
+        env_allow_high_risk = os.getenv("ALLOW_HIGH_RISK_ACTIONS", "").strip().lower() in {
             "1",
             "true",
             "yes",
         }
+        if "ALLOW_HIGH_RISK_ACTIONS" in os.environ:
+            allow_high_risk = env_allow_high_risk
         raw = os.getenv("HIGH_RISK_ALLOWED_ACTIONS", "").strip()
-        allowlisted_actions = {
-            part.strip() for part in raw.split(",") if part.strip()
-        }
+        if raw:
+            allowlisted_actions = {part.strip() for part in raw.split(",") if part.strip()}
         return cls(
             allow_high_risk=allow_high_risk,
             allowlisted_actions=allowlisted_actions,

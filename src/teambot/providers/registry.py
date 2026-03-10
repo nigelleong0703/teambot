@@ -1,6 +1,34 @@
 from __future__ import annotations
 
-ROLE_AGENT = "agent_model"
+PROFILE_AGENT = "agent"
+PROFILE_SUMMARY = "summary"
+LEGACY_ROLE_AGENT = "agent_model"
+LEGACY_ROLE_SUMMARY = "summary_model"
+
+# Backward-compatibility alias for older role-based call sites.
+ROLE_AGENT = PROFILE_AGENT
+
+_PROFILE_ALIASES = {
+    PROFILE_AGENT: PROFILE_AGENT,
+    PROFILE_SUMMARY: PROFILE_SUMMARY,
+    LEGACY_ROLE_AGENT: PROFILE_AGENT,
+    LEGACY_ROLE_SUMMARY: PROFILE_SUMMARY,
+}
+
+_LEGACY_PROFILE_NAMES = {
+    PROFILE_AGENT: (LEGACY_ROLE_AGENT,),
+    PROFILE_SUMMARY: (LEGACY_ROLE_SUMMARY,),
+}
+
+
+def resolve_profile_name(name: str) -> str:
+    normalized = name.strip()
+    return _PROFILE_ALIASES.get(normalized, normalized)
+
+
+def candidate_profile_names(name: str) -> tuple[str, ...]:
+    resolved = resolve_profile_name(name)
+    return (resolved, *_LEGACY_PROFILE_NAMES.get(resolved, ()))
 
 OPENAI_COMPATIBLE_PROVIDER = "openai-compatible"
 OPENAI_PROVIDER = "openai"

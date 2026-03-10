@@ -83,6 +83,14 @@ def test_transcript_renderer_builds_terminal_native_summary() -> None:
             observation="2026-03-07 21:30:00",
         )
     )
+    renderer.handle_event(
+        RuntimeEvent(
+            run_id="run-1",
+            step=1,
+            event_type="memory_compacted",
+            text="Compacted summary",
+        )
+    )
     renderer.handle_event(RuntimeEvent(run_id="run-1", step=2, event_type="run_completed", text="It is 9:30 PM."))
 
     text = renderer.render_text()
@@ -90,6 +98,7 @@ def test_transcript_renderer_builds_terminal_native_summary() -> None:
     assert "Need current time" not in text
     assert "used get_current_time" in text
     assert "observed 2026-03-07 21:30:00" in text
+    assert "Compacted summary" in text
     assert "⏺ It is 9:30 PM." in text
 
 
@@ -121,6 +130,7 @@ def test_tui_app_exposes_terminal_transcript_renderer() -> None:
     app = TeamBotTuiApp()
 
     assert isinstance(app.transcript, TranscriptRenderer)
+    assert app.thread_ts != "1710000000.0001"
 
 
 def test_tui_status_line_is_workspace_path_only() -> None:

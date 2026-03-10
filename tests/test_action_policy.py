@@ -11,6 +11,9 @@ from teambot.domain.models import AgentState
 def _state() -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
+        "recent_turns": [],
+        "conversation_summary": "",
+        "memory_system_prompt_suffix": "",
         "event_type": "message",
         "user_text": "run tool",
         "reaction": None,
@@ -91,3 +94,20 @@ def test_high_risk_action_is_blocked_by_policy_gate() -> None:
     assert "High-risk action blocked by policy" in result["reply_text"]
     assert result["execution_trace"][0]["blocked"] is True
 
+
+def test_execution_policy_gate_can_load_from_runtime_config_file(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    runtime_config = tmp_path / "config.json"
+    runtime_config.write_text(
+        '{"policy":{"allow_high_risk_actions":false,"high_risk_allowed_actions":["exec_command"]}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("RUNTIME_CONFIG_FILE", str(runtime_config))
+
+    policy = ExecutionPolicyGate.from_env()
+
+    assert policy.check("exec_command", "high").allowed is True
+    denied = policy.check("dangerous_tool", "high")
+    assert denied.allowed is False

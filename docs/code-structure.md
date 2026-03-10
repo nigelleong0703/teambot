@@ -5,10 +5,12 @@ This is the single source of truth for TeamBot code layout.
 ## 1. Directory Layout
 
 ```text
+config/               # repo-tracked runtime JSON config (canonical: config/config.json)
 src/teambot/
   app/                 # entrypoints (API/CLI/bootstrap)
   agent/               # ReAct loop, runtime owner, and application service
   actions/             # executable actions: tools + deterministic event handlers
+  memory/              # transcript context assembly, long-term memory, compaction
   providers/           # model/provider clients and provider manager
   skills/              # skill docs lifecycle and reasoner context assembly
   mcp/                 # MCP config, manager, and bridge
@@ -37,7 +39,12 @@ New code MUST follow the layout above.
 
 - `providers`
   - Owns model/provider integrations and provider selection.
+  - Owns model definitions, profile bindings, and provider client routing.
   - This is where OpenAI-compatible, Anthropic, and related client wiring belongs.
+
+- `memory`
+  - Owns session-scoped memory management and long-term memory loading.
+  - This is where transcript compaction, rolling summaries, session-context policy, and memory-context injection belong.
 
 - `skills`
   - Owns skill docs lifecycle and context assembly.
@@ -54,22 +61,23 @@ New code MUST follow the layout above.
 
 - `domain`
   - Owns TeamBot's core objects and stored state.
-  - Examples: `InboundEvent`, `OutboundReply`, `RuntimeEvent`, conversation records, store models.
+  - Examples: `InboundEvent`, `OutboundReply`, `RuntimeEvent`, conversation records, store models, bounded prior-turn history passed into the reasoner state.
 
 ## 3. Dependency Direction
 
 Allowed:
-- `app -> agent/actions/providers/skills/mcp/domain/contracts/channels/workflows`
-- `channels -> agent/actions/providers/skills/mcp/domain/contracts`
-- `workflows -> agent/actions/providers/skills/mcp/domain/contracts`
-- `agent -> actions/providers/skills/mcp/domain/contracts`
+- `app -> agent/actions/memory/providers/skills/mcp/domain/contracts/channels/workflows`
+- `channels -> agent/actions/memory/providers/skills/mcp/domain/contracts`
+- `workflows -> agent/actions/memory/providers/skills/mcp/domain/contracts`
+- `agent -> actions/memory/providers/skills/mcp/domain/contracts`
 - `actions -> domain/contracts`
+- `memory -> domain/contracts`
 - `providers -> contracts`
 - `skills -> domain/contracts`
 - `mcp -> actions/providers/contracts`
 
 Disallowed:
-- `domain -> agent/actions/providers/skills/mcp/channels/workflows`
+- `domain -> agent/actions/memory/providers/skills/mcp/channels/workflows`
 - `agent -> channels`
 - `actions -> channels`
 - `providers -> agent`
@@ -82,6 +90,8 @@ Disallowed:
 - Shared DTO/state types go to `domain` (e.g. inbound/outbound/session).
 - Runtime transcript/event contracts also go to `domain` (e.g. `RuntimeEvent`).
 - Storage logic goes to `domain/store`.
+- Runtime-local persisted state such as SQLite-backed conversation history and processed-event caches also belongs under `domain/store`.
+- Session-memory management, long-term memory loading, and compaction policy belong under `memory/`.
 - ReAct loop logic goes to `agent/`.
 - `agent/` should stay focused on `runtime.py`, `service.py`, `graph.py`, `reason.py`, `execution.py`, `state.py`, and `policy.py`.
 - Executable model-callable operations belong under `actions/tools/`.

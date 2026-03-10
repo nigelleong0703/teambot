@@ -7,6 +7,9 @@ from teambot.actions.registry import PluginHost
 def _state() -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
+        "recent_turns": [],
+        "conversation_summary": "",
+        "memory_system_prompt_suffix": "",
         "event_type": "message",
         "user_text": "hello",
         "reaction": None,
@@ -62,5 +65,4 @@ def test_plugin_host_activation_toggle() -> None:
     assert host.has_action("create_task") is False
     assert host.activate("create_task") is True
     assert host.has_action("create_task") is True
-
 

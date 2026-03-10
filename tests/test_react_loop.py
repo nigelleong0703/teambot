@@ -49,6 +49,9 @@ class _SequentialReasoner:
 def _state(text: str = "hi") -> AgentState:
     return {
         "conversation_key": "T1:C1:1",
+        "recent_turns": [],
+        "conversation_summary": "",
+        "memory_system_prompt_suffix": "",
         "event_type": "message",
         "user_text": text,
         "reaction": None,
@@ -122,4 +125,3 @@ def test_observe_does_not_finish_after_single_tool_result() -> None:
     assert output["react_step"] == 1
     assert output["react_done"] is False
     assert output["execution_trace"][0]["observation"] == "first observation"
-

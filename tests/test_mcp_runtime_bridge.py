@@ -50,3 +50,17 @@ def test_mcp_bridge_registers_tools_with_namesake_rename(monkeypatch) -> None:
     assert "read_file" in names
     assert any(name.startswith("read_file__mcp_") for name in names)
 
+
+def test_mcp_config_can_load_from_runtime_config_file(monkeypatch, tmp_path) -> None:
+    runtime_config = tmp_path / "config.json"
+    runtime_config.write_text(
+        '{"mcp":{"enabled":true,"servers":[{"name":"demo","tools":[{"name":"mcp_search","description":"Search MCP"}]}]}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("RUNTIME_CONFIG_FILE", str(runtime_config))
+
+    cfg = load_mcp_runtime_config()
+
+    assert cfg.enabled is True
+    assert [server.name for server in cfg.servers] == ["demo"]
+    assert cfg.servers[0].tools[0].name == "mcp_search"

@@ -8,6 +8,7 @@ from teambot.providers.registry import ROLE_AGENT
 from teambot.agent.state import build_initial_state
 from teambot.app.bootstrap import build_agent_service
 from teambot.domain.models import InboundEvent
+from teambot.memory.models import MemoryContext
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -110,6 +111,37 @@ def test_bootstrap_does_not_override_existing_environment_with_dotenv(
     assert endpoint.base_url == "https://shell.example/v1"
 
 
+def test_bootstrap_loads_runtime_config_file_from_dotenv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    runtime_config = tmp_path / "config.json"
+    runtime_config.write_text(
+        (
+            '{"providers":{"models":{"agent_main":{"provider":"anthropic","model":"dotenv-config-model","api_key":"${ANTHROPIC_API_KEY}"}},"profiles":{"agent":"agent_main"}}}'
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("AGENT_PROVIDER", raising=False)
+    monkeypatch.delenv("AGENT_MODEL", raising=False)
+    monkeypatch.delenv("AGENT_API_KEY", raising=False)
+    monkeypatch.delenv("AGENT_BASE_URL", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "runtime-config-key")
+    (tmp_path / ".env").write_text(
+        f"RUNTIME_CONFIG_FILE={runtime_config}\n",
+        encoding="utf-8",
+    )
+
+    service = build_agent_service(tools_profile="minimal")
+
+    assert service.provider_manager is not None
+    binding = service.provider_manager.settings.get_profile_binding(ROLE_AGENT)
+    endpoint = binding.endpoints[0]
+    assert endpoint.model == "dotenv-config-model"
+    assert endpoint.api_key == "runtime-config-key"
+
+
 def test_build_initial_state_uses_agent_home_work_directory(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -130,5 +162,36 @@ def test_build_initial_state_uses_agent_home_work_directory(
     assert state["runtime_working_dir"] == str(
         (tmp_path / ".teambot" / "agents" / "demo" / "work").resolve()
     )
+    assert state["recent_turns"] == []
+    assert state["conversation_summary"] == ""
+    assert state["memory_system_prompt_suffix"] == ""
 
 
+def test_build_initial_state_applies_memory_context() -> None:
+    event = InboundEvent(
+        event_id="evt-history-state-1",
+        event_type="message",
+        team_id="T1",
+        channel_id="C1",
+        thread_ts="1.2",
+        user_id="U1",
+        text="follow up",
+    )
+
+    context = MemoryContext(
+        recent_turns=[
+            {"role": "user", "text": "first"},
+            {"role": "assistant", "text": "second"},
+        ],
+        conversation_summary="Earlier turns established the problem statement.",
+        system_prompt_suffix="Long-term memory:\n- Prefer concise code reviews.",
+    )
+    state = build_initial_state(
+        event=event,
+        conversation_key="T1:C1:1.2",
+        memory_context=context,
+    )
+
+    assert state["recent_turns"] == context.recent_turns
+    assert state["conversation_summary"] == context.conversation_summary
+    assert state["memory_system_prompt_suffix"] == context.system_prompt_suffix

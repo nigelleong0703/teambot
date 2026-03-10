@@ -9,6 +9,7 @@ Any change to routing, loop termination, tool execution, reasoner prompt/payload
 
 - Runtime loop: `reason -> act -> observe -> (loop | compose_reply)`
 - Reason-stage reasoner contract (native tool call or final text)
+- Memory-context assembly (session memory, rolling summary state, long-term memory)
 - Tool and event-handler execution with policy gate
 - Runtime event emission for transcript-style clients
 - Built-in tool surface registration with profile + namesake strategy + MCP bridge
@@ -64,6 +65,7 @@ flowchart TD
 
 - File: `src/teambot/agent/state.py`
 - Initializes:
+  - `recent_turns`, `conversation_summary`, and `memory_system_prompt_suffix` from session memory + `MemoryContextAssembler`
   - `runtime_working_dir=$AGENT_HOME/work`
   - `react_step=0`
   - `react_max_steps=3` (default)
@@ -94,12 +96,15 @@ Base system prompt is composed from `AGENT_HOME/system` markdown files in this o
 Then runtime appends:
 - reasoner guidance text
 - loaded skill context summary (if available)
+- optional long-term memory loaded from `AGENT_HOME/system/memory.md`
 - internal visibility rule: user answers must describe capabilities without exposing raw tool/skill/action names
 
 #### 2.2 Reasoner Input/Output Contract
 
 Reasoner payload includes:
 - `event_type`, `user_text`, `reaction`, `last_observation`
+- `recent_turns` bounded prior conversation turns selected by the session-memory char budget
+- `conversation_summary` rolling summary text when present
 - `skill_docs` bounded excerpts (if skill docs exist)
 
 Reasoner tool schema includes `tool` actions only.
@@ -182,6 +187,43 @@ Behavior:
   - `execution_trace`
 - This keeps the runtime loop deterministic while allowing presentation layers such as the CLI to render transcript-style output without re-reading internal state.
 
+### 5.2 Store Persistence
+
+- File: `src/teambot/domain/store/memory_store.py`
+- Runtime conversation state is now persisted in SQLite at `AGENT_HOME/state/teambot.sqlite`.
+- Persisted records include:
+  - conversation metadata by `conversation_key`
+  - bounded conversation turn history
+  - rolling summary state (`rolling_summary`, `last_compacted_seq`)
+  - processed-event reply cache for idempotency
+
+### 5.3 Memory Assembly
+
+- Files:
+  - `src/teambot/memory/context.py`
+  - `src/teambot/memory/session.py`
+  - `src/teambot/memory/policy.py`
+  - `src/teambot/memory/longterm.py`
+  - `src/teambot/memory/compaction.py`
+- `SessionMemoryManager` owns session-scoped transcript loading, rolling-summary compaction, and recent-turn selection.
+- `CharBudgetMemoryPolicy` is shared by compaction and recent-turn assembly so both layers honor the same session-context budget.
+- `MemoryContextAssembler` only merges session memory with long-term memory for reasoner consumption.
+- `FileLongTermMemoryProvider` optionally loads `AGENT_HOME/system/memory.md` and appends it to the reasoner system prompt.
+- `RollingSummaryCompactionEngine` incrementally compacts older turns into `conversation_state.rolling_summary` while preserving the newest raw turns that fit the session char budget.
+- Runtime default summary generation is provider-backed. If no model-backed summary is available, compaction is skipped instead of falling back to a deterministic rewrite.
+- Provider routing now uses named model profiles instead of hard-coded model-purpose strings:
+  - `agent` profile for the main reasoner/tool-calling path
+  - `summary` profile for rolling-summary generation
+- Built-in `AGENT_*` / `SUMMARY_*` env groups are shortcut bindings.
+- Preferred advanced config is a single runtime config file:
+  - `RUNTIME_CONFIG_FILE` points to `config/config.json`
+  - provider config lives under `providers.models` and `providers.profiles`
+  - tool defaults live under `tools`
+  - policy defaults live under `policy`
+  - MCP defaults live under `mcp`
+  - string values inside `config/config.json` may reference env vars with `${ENV_VAR}`
+- `MODEL_PROFILES_JSON` remains as a legacy compatibility path only.
+
 ## Runtime Event Stream
 
 - Files:
@@ -193,6 +235,7 @@ Behavior:
 - `RuntimeEvent` is the canonical transcript event contract for step-by-step UI clients.
 - The agent loop can emit:
   - `thinking_delta`
+  - `memory_compacted`
   - `tool_call`
   - `tool_result`
   - `final_delta`
@@ -218,7 +261,7 @@ LangChain is used in provider adapters, not in runtime control-flow:
 - `src/teambot/providers/clients/langchain.py`
 
 Runtime call chain:
-- reason -> `ProviderManager.invoke_role_tools(...)` -> `LangChainProviderClient.bind_tools(...)`
+- reason -> `ProviderManager.invoke_profile_tools(profile="agent", ...)` -> `LangChainProviderClient.bind_tools(...)`
 
 ## Streaming Behavior
 
@@ -256,6 +299,7 @@ Runtime call chain:
   - subdued activity summaries (`used ...`, `observed ...`)
   - prominent final answer line (`⏺ ...`)
 - The prompt uses plain terminal input instead of a boxed widget or alternate-screen composer.
+- CLI/TUI discard buffered stdin and temporarily suppress terminal echo during an active run so keystrokes typed mid-run do not leak into the next user message or render as stray control characters.
 - `final_delta` incrementally updates the visible final answer line in-place.
 - `thinking_delta` remains available at the runtime-event layer, but the TUI collapses it into the same `✻ Thinking...` presentation instead of rendering raw token deltas.
 - Supported slash commands in the TUI:
@@ -272,7 +316,7 @@ Runtime call chain:
 
 ## Known Design Problems (Current)
 
-1. Conversation history is stored but not injected into reasoner payload.
+1. Rolling-summary generation now depends on provider availability after the reply path. If no summary-capable model role is available, session compaction is skipped and the raw transcript window continues to grow until a model is configured.
 2. Reasoner output quality depends on provider/model behavior and prompt discipline.
 3. Browser automation is still not aligned to the OpenClaw-style `browser(action=...)` protocol.
 4. Streaming smoothness depends on provider chunk granularity.
@@ -294,6 +338,9 @@ Update this document whenever any of these change:
 - `src/teambot/actions/event_handlers/builtin.py`
 - `src/teambot/skills/context.py`
 - `src/teambot/skills/manager.py`
+- `src/teambot/memory/context.py`
+- `src/teambot/memory/longterm.py`
+- `src/teambot/memory/compaction.py`
 - `src/teambot/actions/tools/runtime_builder.py`
 - `src/teambot/actions/tools/external_operation_tools.py`
 - `src/teambot/mcp/manager.py`

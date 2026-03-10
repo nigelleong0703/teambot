@@ -41,3 +41,37 @@ def test_missing_strict_tools_config_raises(tmp_path) -> None:
     except FileNotFoundError:
         assert True
 
+
+def test_load_runtime_tool_config_from_runtime_config_file(monkeypatch, tmp_path) -> None:
+    runtime_config = tmp_path / "config.json"
+    runtime_config.write_text(
+        json.dumps(
+            {
+                "tools": {
+                    "profile": "external_operation",
+                    "namesake_strategy": "rename",
+                    "enable_echo_tool": True,
+                    "enable_exec_alias": True,
+                    "enable": ["desktop_screenshot"],
+                    "disable": ["execute_shell_command"],
+                    "exec_timeout_seconds": 33,
+                    "browser_timeout_seconds": 44,
+                    "tool_output_max_chars": 555,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("RUNTIME_CONFIG_FILE", str(runtime_config))
+
+    cfg = load_runtime_tool_config()
+
+    assert cfg.profile == "external_operation"
+    assert cfg.namesake_strategy == "rename"
+    assert cfg.enable_echo_tool is True
+    assert cfg.enable_exec_alias is True
+    assert cfg.enable_tools == ("desktop_screenshot",)
+    assert cfg.disable_tools == ("execute_shell_command",)
+    assert cfg.exec_timeout_seconds == 33
+    assert cfg.browser_timeout_seconds == 44
+    assert cfg.tool_output_max_chars == 555

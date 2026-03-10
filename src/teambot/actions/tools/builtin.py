@@ -1,27 +1,21 @@
 from __future__ import annotations
 
-import os
-
 from ...contracts.contracts import ModelRoleInvoker
-from .external_operation_tools import env_enabled
+from .config import load_runtime_tool_config
 from .runtime_builder import build_runtime_tool_registry
 from .registry import ToolRegistry
-
-
-def _env_enabled(name: str) -> bool:
-    return env_enabled(name)
 
 
 def build_tool_registry(
     provider_manager: ModelRoleInvoker | None = None,
 ) -> ToolRegistry:
-    profile = os.getenv("TOOLS_PROFILE", "minimal")
-    namesake_strategy = os.getenv("TOOLS_NAMESAKE_STRATEGY", "skip")
+    config = load_runtime_tool_config()
     return build_runtime_tool_registry(
-        profile=profile,
+        profile=config.profile,
         provider_manager=provider_manager,
-        namesake_strategy=namesake_strategy,
-        enable_echo_tool=_env_enabled("ENABLE_ECHO_TOOL"),
-        enable_exec_alias=_env_enabled("ENABLE_EXEC_TOOL"),
+        namesake_strategy=config.namesake_strategy,
+        enable_echo_tool=config.enable_echo_tool,
+        enable_exec_alias=config.enable_exec_alias,
+        enable_tools=config.enable_tools,
+        disable_tools=config.disable_tools,
     )
-

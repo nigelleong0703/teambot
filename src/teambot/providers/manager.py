@@ -12,12 +12,12 @@ from .base import (
     ProviderClient,
     ProviderEndpoint,
     ProviderInvocationError,
-    ProviderRoleBinding,
+    ProviderProfileBinding,
     ProviderSettings,
 )
 from .clients.langchain import LangChainProviderClient
 from .config import load_provider_settings_from_env
-from .registry import ROLE_AGENT
+from .registry import PROFILE_AGENT, PROFILE_SUMMARY, ROLE_AGENT, resolve_profile_name
 
 
 def extract_json_object(text: str) -> dict[str, Any]:
@@ -102,12 +102,15 @@ class ProviderManager:
     @classmethod
     def from_env(cls) -> "ProviderManager | None":
         settings = load_provider_settings_from_env()
-        if not settings.role_bindings:
+        if not settings.profile_bindings:
             return None
         return cls(settings=settings)
 
+    def has_profile(self, profile: str) -> bool:
+        return resolve_profile_name(profile) in self.settings.profile_bindings
+
     def has_role(self, role: str) -> bool:
-        return role in self.settings.role_bindings
+        return self.has_profile(role)
 
     def set_event_listener(
         self,
@@ -120,16 +123,16 @@ class ProviderManager:
             return
         self._event_listener(event, payload)
 
-    def invoke_role_json(
+    def invoke_profile_json(
         self,
         *,
-        role: str,
+        profile: str,
         system_prompt: str,
         payload: dict[str, Any],
         on_token: Callable[[str], None] | None = None,
     ) -> ProviderInvocationResult:
-        raw = self._invoke_role_raw(
-            role=role,
+        raw = self._invoke_profile_raw(
+            profile=resolve_profile_name(profile),
             system_prompt=system_prompt,
             payload=payload,
             on_token=on_token,
@@ -143,16 +146,16 @@ class ProviderManager:
             usage=raw["usage"],
         )
 
-    def invoke_role_text(
+    def invoke_profile_text(
         self,
         *,
-        role: str,
+        profile: str,
         system_prompt: str,
         user_message: str,
         on_token: Callable[[str], None] | None = None,
     ) -> ProviderTextResult:
-        raw = self._invoke_role_raw(
-            role=role,
+        raw = self._invoke_profile_raw(
+            profile=resolve_profile_name(profile),
             system_prompt=system_prompt,
             payload=user_message,
             on_token=on_token,
@@ -165,10 +168,10 @@ class ProviderManager:
             usage=raw["usage"],
         )
 
-    def invoke_role_tools(
+    def invoke_profile_tools(
         self,
         *,
-        role: str,
+        profile: str,
         system_prompt: str,
         payload: dict[str, Any],
         tools: list[ModelToolSpec],
@@ -182,8 +185,8 @@ class ProviderManager:
             }
             for tool in tools
         ]
-        raw = self._invoke_role_raw(
-            role=role,
+        raw = self._invoke_profile_raw(
+            profile=resolve_profile_name(profile),
             system_prompt=system_prompt,
             payload=payload,
             tools=tool_payload,
@@ -214,16 +217,64 @@ class ProviderManager:
             usage=raw.get("usage", {}) if isinstance(raw.get("usage"), dict) else {},
         )
 
-    def _invoke_role_raw(
+    def invoke_role_json(
         self,
         *,
         role: str,
+        system_prompt: str,
+        payload: dict[str, Any],
+        on_token: Callable[[str], None] | None = None,
+    ) -> ProviderInvocationResult:
+        return self.invoke_profile_json(
+            profile=role,
+            system_prompt=system_prompt,
+            payload=payload,
+            on_token=on_token,
+        )
+
+    def invoke_role_text(
+        self,
+        *,
+        role: str,
+        system_prompt: str,
+        user_message: str,
+        on_token: Callable[[str], None] | None = None,
+    ) -> ProviderTextResult:
+        return self.invoke_profile_text(
+            profile=role,
+            system_prompt=system_prompt,
+            user_message=user_message,
+            on_token=on_token,
+        )
+
+    def invoke_role_tools(
+        self,
+        *,
+        role: str,
+        system_prompt: str,
+        payload: dict[str, Any],
+        tools: list[ModelToolSpec],
+        on_token: Callable[[str], None] | None = None,
+    ) -> ModelToolInvocationResult:
+        return self.invoke_profile_tools(
+            profile=role,
+            system_prompt=system_prompt,
+            payload=payload,
+            tools=tools,
+            on_token=on_token,
+        )
+
+    def _invoke_profile_raw(
+        self,
+        *,
+        profile: str,
         system_prompt: str,
         payload: dict[str, Any] | str,
         tools: list[dict[str, Any]] | None = None,
         on_token: Callable[[str], None] | None = None,
     ) -> dict[str, Any]:
-        binding = self.settings.get_role_binding(role)
+        profile = resolve_profile_name(profile)
+        binding = self.settings.get_profile_binding(profile)
         attempts: list[ProviderAttempt] = []
         candidate_endpoints = self._candidate_endpoints(binding)
 
@@ -233,7 +284,8 @@ class ProviderManager:
             self._emit(
                 "model_start",
                 {
-                    "role": role,
+                    "profile": profile,
+                    "role": profile,
                     "provider": endpoint.provider,
                     "model": endpoint.model,
                     "endpoint": endpoint.base_url or "",
@@ -248,7 +300,8 @@ class ProviderManager:
                     self._emit(
                         "model_token",
                         {
-                            "role": role,
+                            "profile": profile,
+                            "role": profile,
                             "provider": endpoint.provider,
                             "model": endpoint.model,
                             "token": token,
@@ -261,7 +314,8 @@ class ProviderManager:
                     self._emit(
                         "model_reasoning_token",
                         {
-                            "role": role,
+                            "profile": profile,
+                            "role": profile,
                             "provider": endpoint.provider,
                             "model": endpoint.model,
                             "token": token,
@@ -315,7 +369,8 @@ class ProviderManager:
                 self._emit(
                     "model_end",
                     {
-                        "role": role,
+                        "profile": profile,
+                        "role": profile,
                         "provider": endpoint.provider,
                         "model": endpoint.model,
                         "duration_ms": elapsed_ms,
@@ -335,7 +390,7 @@ class ProviderManager:
                 elapsed_ms = int((time.perf_counter() - started_at) * 1000)
                 attempts.append(
                     ProviderAttempt(
-                        role=role,
+                        profile=profile,
                         provider=endpoint.provider,
                         model=endpoint.model,
                         endpoint=endpoint.base_url or "",
@@ -345,7 +400,8 @@ class ProviderManager:
                 self._emit(
                     "model_error",
                     {
-                        "role": role,
+                        "profile": profile,
+                        "role": profile,
                         "provider": endpoint.provider,
                         "model": endpoint.model,
                         "duration_ms": elapsed_ms,
@@ -354,15 +410,15 @@ class ProviderManager:
                 )
 
         raise ProviderInvocationError(
-            f"all providers failed for role: {role}",
+            f"all providers failed for profile: {profile}",
             attempts=attempts,
         )
 
-    def _candidate_endpoints(self, binding: ProviderRoleBinding) -> list[ProviderEndpoint]:
+    def _candidate_endpoints(self, binding: ProviderProfileBinding) -> list[ProviderEndpoint]:
         endpoints = list(binding.endpoints)
         if not endpoints:
             raise ProviderInvocationError(
-                f"role has no provider endpoints: {binding.role}",
+                f"profile has no provider endpoints: {binding.profile}",
             )
         return endpoints[: max(binding.max_attempts, 1)]
 
@@ -372,6 +428,8 @@ def build_default_provider_manager() -> ProviderManager | None:
 
 
 __all__ = [
+    "PROFILE_AGENT",
+    "PROFILE_SUMMARY",
     "ROLE_AGENT",
     "ProviderInvocationResult",
     "ProviderTextResult",
@@ -380,4 +438,3 @@ __all__ = [
     "build_default_provider_manager",
     "extract_json_object",
 ]
-
