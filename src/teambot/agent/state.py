@@ -29,6 +29,8 @@ def build_initial_state(
         "react_done": False,
         "react_notes": [],
         "reasoning_note": "",
+        "active_skill_names": [],
+        "active_skill_docs": [],
         "selected_action": "",
         "selected_skill": "",
         "action_input": {},

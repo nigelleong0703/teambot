@@ -31,8 +31,10 @@ def test_agent_structure_matches_canonical_top_level_layout() -> None:
 
     skills_dir = ROOT / "src" / "teambot" / "skills"
     assert (skills_dir / "manager.py").exists()
-    assert (skills_dir / "registry.py").exists()
-    assert (skills_dir / "runtime_loader.py").exists()
+    assert (skills_dir / "context.py").exists()
+    assert not (skills_dir / "registry.py").exists()
+    assert not (skills_dir / "runtime_loader.py").exists()
+    assert not (skills_dir / "dynamic.py").exists()
 
     mcp_dir = ROOT / "src" / "teambot" / "mcp"
     assert (mcp_dir / "manager.py").exists()

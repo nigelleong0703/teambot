@@ -10,7 +10,6 @@ from ..actions.event_handlers.registry import EventHandlerRegistry
 from ..actions.tools.registry import ToolRegistry
 from ..mcp.manager import MCPClientManager
 from ..providers.manager import ProviderManager
-from ..skills import SkillRegistry
 from ..memory import (
     CharBudgetMemoryPolicy,
     MemoryContextAssembler,
@@ -18,7 +17,6 @@ from ..memory import (
     SessionCompactionResult,
     SessionMemoryManager,
 )
-from ..runtime_paths import resolve_dynamic_skills_dir
 from .runtime import TeamBotRuntime
 from .state import build_initial_state
 
@@ -33,9 +31,7 @@ class AgentService:
     ) -> None:
         self.store = MemoryStore()
         self.memory_policy = CharBudgetMemoryPolicy()
-        self.dynamic_skills_dir = resolve_dynamic_skills_dir()
         self.provider_manager: ProviderManager | None
-        self.registry: SkillRegistry
         self.event_handler_registry: EventHandlerRegistry
         self.tool_registry: ToolRegistry
         self.plugin_host: PluginHost
@@ -44,7 +40,6 @@ class AgentService:
         self.policy_gate = None
         self.graph = None
         self._agent = TeamBotRuntime(
-            dynamic_skills_dir=self.dynamic_skills_dir,
             tools_config_path=tools_config_path,
             tools_profile=tools_profile,
             strict_tools_config=strict_tools_config,
@@ -61,7 +56,6 @@ class AgentService:
 
     def _sync_runtime_handles(self) -> None:
         self.provider_manager = self._agent.provider_manager
-        self.registry = self._agent.registry
         self.event_handler_registry = self._agent.event_handler_registry
         self.tool_registry = self._agent.tool_registry
         self.plugin_host = self._agent.plugin_host

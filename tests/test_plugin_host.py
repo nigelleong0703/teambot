@@ -1,4 +1,4 @@
-﻿from teambot.skills.registry import SkillManifest, SkillRegistry
+﻿from teambot.actions.event_handlers.builtin import build_registry as build_event_handler_registry
 from teambot.actions.tools.registry import ToolManifest, ToolRegistry
 from teambot.domain.models import AgentState
 from teambot.actions.registry import PluginHost
@@ -18,6 +18,8 @@ def _state() -> AgentState:
         "react_done": False,
         "react_notes": [],
         "reasoning_note": "",
+        "active_skill_names": [],
+        "active_skill_docs": [],
         "selected_skill": "",
         "skill_input": {},
         "skill_output": {},
@@ -26,20 +28,15 @@ def _state() -> AgentState:
     }
 
 
-def test_plugin_host_unifies_skill_and_tool_actions() -> None:
-    skills = SkillRegistry()
+def test_plugin_host_unifies_event_handler_and_tool_actions() -> None:
     tools = ToolRegistry()
-    skills.register(
-        SkillManifest(name="create_task", description="reply"),
-        lambda _s: {"message": "ok"},
-    )
     tools.register(
         ToolManifest(name="tool_echo", description="echo", risk_level="low"),
         lambda state: {"message": f"echo:{state['user_text']}"},
     )
 
     host = PluginHost()
-    host.bind_skill_registry(skills)
+    host.bind_event_handler_registry(build_event_handler_registry())
     host.bind_tool_registry(tools)
 
     names = {action.name for action in host.list_actions()}
@@ -52,17 +49,11 @@ def test_plugin_host_unifies_skill_and_tool_actions() -> None:
 
 
 def test_plugin_host_activation_toggle() -> None:
-    skills = SkillRegistry()
-    skills.register(
-        SkillManifest(name="create_task", description="reply"),
-        lambda _s: {"message": "ok"},
-    )
     host = PluginHost()
-    host.bind_skill_registry(skills)
+    host.bind_event_handler_registry(build_event_handler_registry())
 
     assert host.has_action("create_task") is True
     assert host.deactivate("create_task") is True
     assert host.has_action("create_task") is False
     assert host.activate("create_task") is True
     assert host.has_action("create_task") is True
-

@@ -33,17 +33,17 @@ async def handle_slack_event(event: InboundEvent) -> dict:
 
 @app.get("/skills")
 async def list_skills() -> dict:
-    manifests = [m.__dict__ for m in service.registry.list_manifests()]
     loaded_docs = SkillService.list_available_skill_docs()
     loaded_names = sorted({doc.name for doc in loaded_docs})
     return {
-        "runtime_skills": manifests,
+        "activation_tool_enabled": service.tool_registry.has("activate_skill"),
         "loaded_skill_names": loaded_names,
         "active_skill_names": loaded_names,
         "all_skills": [
             {
                 "name": s.name,
                 "description": s.description,
+                "when_to_use": s.when_to_use,
                 "source": s.source,
                 "path": s.path,
                 "enabled": True,
@@ -64,21 +64,18 @@ async def list_conversations() -> dict:
 @app.post("/skills/sync")
 async def sync_skills(force: bool = False) -> dict:
     synced, skipped = SkillService.sync_all(force=force)
-    service.reload_runtime()
     return {"ok": True, "synced": synced, "skipped": skipped}
 
 
 @app.post("/skills/{skill_name}/enable")
 async def enable_skill(skill_name: str, force: bool = False) -> dict:
     ok = SkillService.enable_skill(skill_name, force=force)
-    service.reload_runtime()
     return {"ok": ok, "skill_name": skill_name}
 
 
 @app.post("/skills/{skill_name}/disable")
 async def disable_skill(skill_name: str) -> dict:
     ok = SkillService.disable_skill(skill_name)
-    service.reload_runtime()
     return {"ok": ok, "skill_name": skill_name}
 
 
@@ -90,4 +87,3 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
-

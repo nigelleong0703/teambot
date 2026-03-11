@@ -7,8 +7,8 @@ from ..contracts.contracts import ActionPluginRegistry, ModelRoleInvoker, ModelT
 from ..domain.models import AgentState
 from ..providers.manager import PROFILE_AGENT
 from ..providers.registry import candidate_profile_names
-from ..skills.context import build_reasoner_skill_context
 from .prompts import build_system_prompt_from_working_dir
+from .reasoner_context import build_reasoner_request_context
 from .execution import action_output_update, action_selection_update, get_action_output
 
 _FALLBACK_MESSAGE = "Processed."
@@ -71,12 +71,9 @@ def _safe_str(value: object) -> str:
 
 def _reasoner_system_prompt(state: AgentState) -> str:
     prompt = f"{build_system_prompt_from_working_dir()}\n\n{_reasoner_prompt()}"
-    skill_context = build_reasoner_skill_context()
-    if skill_context.system_prompt_suffix:
-        prompt = f"{prompt}\n\n{skill_context.system_prompt_suffix}"
-    memory_suffix = _safe_str(state.get("memory_system_prompt_suffix"))
-    if memory_suffix:
-        prompt = f"{prompt}\n\n{memory_suffix}"
+    request_context = build_reasoner_request_context(state)
+    if request_context.system_prompt_suffix:
+        prompt = f"{prompt}\n\n{request_context.system_prompt_suffix}"
     return prompt
 
 
@@ -87,15 +84,7 @@ def _reasoner_payload(state: AgentState) -> dict[str, Any]:
         "reaction": state.get("reaction"),
         "last_observation": get_action_output(state),
     }
-    recent_turns = state.get("recent_turns", [])
-    if recent_turns:
-        payload["recent_turns"] = recent_turns
-    conversation_summary = _safe_str(state.get("conversation_summary"))
-    if conversation_summary:
-        payload["conversation_summary"] = conversation_summary
-    skill_context = build_reasoner_skill_context()
-    if skill_context.payload_docs:
-        payload["skill_docs"] = skill_context.payload_docs
+    payload.update(build_reasoner_request_context(state).payload_fields)
     return payload
 
 

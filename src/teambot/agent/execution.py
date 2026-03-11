@@ -81,7 +81,16 @@ def build_act_node(action_registry: ActionPluginRegistry, policy_gate: Execution
             output = _blocked_action_output(action_name, decision.reason or "")
         else:
             output = action_registry.invoke(action_name, state)
-        return action_output_update(output)
+        if isinstance(output, dict):
+            state_update = output.get("_state_update")
+            visible_output = {k: v for k, v in output.items() if k != "_state_update"}
+        else:
+            state_update = None
+            visible_output = output
+        updates = action_output_update(visible_output)
+        if isinstance(state_update, dict):
+            updates.update(state_update)
+        return updates
 
     return _act
 

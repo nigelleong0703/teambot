@@ -5,6 +5,7 @@ from typing import Any
 from ...contracts.contracts import ModelRoleInvoker
 from ...domain.models import AgentState
 from .external_operation_tools import (
+    activate_skill,
     browser_use,
     desktop_screenshot,
     edit_file,
@@ -41,6 +42,23 @@ def builtin_tool_definitions(
     # provider_manager reserved for future provider-native tool integrations.
     _ = provider_manager
     return {
+        "activate_skill": (
+            ToolManifest(
+                name="activate_skill",
+                description="Load a skill document into the active reasoner context by skill name.",
+                input_schema=_schema(
+                    properties={
+                        "skill_name": {
+                            "type": "string",
+                            "description": "Exact skill name from the available skill catalog.",
+                        }
+                    },
+                    required=["skill_name"],
+                ),
+                risk_level="low",
+            ),
+            activate_skill,
+        ),
         "read_file": (
             ToolManifest(
                 name="read_file",
@@ -186,4 +204,3 @@ def builtin_tool_definitions(
             execute_shell_command,
         ),
     }
-

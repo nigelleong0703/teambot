@@ -94,6 +94,8 @@ class AgentState(TypedDict):
     react_done: bool
     react_notes: list[str]
     reasoning_note: str
+    active_skill_names: list[str]
+    active_skill_docs: list[dict[str, str]]
     selected_action: str
     selected_skill: str
     action_input: dict[str, Any]

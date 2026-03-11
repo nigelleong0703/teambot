@@ -6,7 +6,6 @@ from urllib.error import URLError
 from teambot.contracts.contracts import ModelToolCall, ModelToolInvocationResult
 from teambot.agent.graph import build_graph
 from teambot.agent.policy import ExecutionPolicyGate
-from teambot.skills.registry import SkillManifest, SkillRegistry
 from teambot.actions.tools import build_tool_registry
 from teambot.domain.models import AgentState
 
@@ -25,6 +24,8 @@ def _state(*, user_text: str = "hello") -> AgentState:
         "react_done": False,
         "react_notes": [],
         "reasoning_note": "",
+        "active_skill_names": [],
+        "active_skill_docs": [],
         "selected_action": "",
         "selected_skill": "",
         "action_input": {},
@@ -63,7 +64,15 @@ def _manifest_names() -> set[str]:
 
 def test_default_tool_registry_keeps_minimal_empty() -> None:
     names = _manifest_names()
-    assert names == set()
+    assert names == {"activate_skill"}
+
+
+def test_activate_skill_tool_is_always_available_and_low_risk() -> None:
+    registry = build_tool_registry(provider_manager=None)
+    manifests = {manifest.name: manifest for manifest in registry.list_manifests()}
+
+    assert "activate_skill" in manifests
+    assert manifests["activate_skill"].risk_level == "low"
 
 
 def test_external_operation_tools_registration_and_risk_levels(
@@ -219,12 +228,9 @@ def test_agent_home_workdir_is_default_for_relative_file_and_shell_operations(
 
 def test_high_risk_external_operation_tool_is_blocked_by_policy_gate(monkeypatch) -> None:
     monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
-    skills = SkillRegistry()
-    skills.register(SkillManifest(name="create_task", description=""), lambda _s: {"message": "ok"})
     tools = build_tool_registry(provider_manager=None)
 
     graph = build_graph(
-        skills,
         tool_registry=tools,
         planner=_Planner("execute_shell_command", {"command": "echo should-not-run"}),
         policy_gate=ExecutionPolicyGate(allow_high_risk=False),
@@ -237,19 +243,9 @@ def test_high_risk_external_operation_tool_is_blocked_by_policy_gate(monkeypatch
 
 
 def test_unknown_model_tool_call_finishes_safely() -> None:
-    skills = SkillRegistry()
     monkey_tools = build_tool_registry(provider_manager=None)
-    skills.register(SkillManifest(name="create_task", description=""), lambda _s: {"message": "fallback"})
-    if not monkey_tools.list_manifests():
-        from teambot.actions.tools.registry import ToolManifest
-
-        monkey_tools.register(
-            ToolManifest(name="get_current_time", description="time tool"),
-            lambda _state: {"message": "time"},
-        )
 
     graph = build_graph(
-        skills,
         tool_registry=monkey_tools,
         planner=_Planner("tool_that_is_not_registered"),
     )
