@@ -6,7 +6,8 @@ from teambot.agent import reason as reason_module
 def test_reasoner_prompt_keeps_internal_tool_category_guidance() -> None:
     prompt = reason_module._reasoner_prompt()
 
-    assert "files, shell, browser, time" in prompt
+    assert "files, shell, web fetch, browser, time" in prompt.lower()
+    assert "prefer web_fetch" in prompt.lower()
     assert "Never invent action names." in prompt
 
 

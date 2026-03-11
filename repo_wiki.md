@@ -137,7 +137,7 @@
   - profile 选集 + namesake 冲突策略
 - `src/teambot/actions/tools/external_operation_tools.py`
   - `activate_skill`
-  - `read_file` / `write_file` / `edit_file` / `execute_shell_command` / `browser_use` / `get_current_time`
+  - `read_file` / `write_file` / `edit_file` / `execute_shell_command` / `web_fetch` / `browser` / `get_current_time`
   - `desktop_screenshot` / `send_file_to_user`（full profile）
 - `src/teambot/mcp/manager.py` + `bridge.py`
   - MCP tools 加载并桥接到同一 tool registry
@@ -183,6 +183,8 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - `MODEL_PROFILES_JSON` 仅保留兼容旧配置，不再是推荐入口
 - `react_done=true` 会直接走 `compose_reply`
 - `observe` 阶段只记录 tool observation；是否继续由下一轮 reasoner 是否继续发 tool call 决定
+- `web_fetch` 是默认 URL 抓取工具；用户给了明确链接且不需要交互时优先用它
+- `browser` 只用于交互式页面流程；当前已切到 `action` 协议，但真实浏览器 backend 仍是后续工作
 - `observe` 产出的 `execution_trace` 现在包含 action input，供 CLI/API reply 做展示
 - runtime 还会发 `RuntimeEvent`，给 CLI/TUI 这种 transcript 客户端按 step 渲染
 - session memory 如果发生 compact，会额外发一个 `memory_compacted` runtime event，让 CLI/TUI 明确显示 `Compacted summary`

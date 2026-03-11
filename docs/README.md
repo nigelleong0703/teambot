@@ -33,6 +33,8 @@ Current runtime terminology baseline:
 - reasoner prompt/payload context composition is finalized in `agent/reasoner_context.py`; memory and skill layers remain separate providers
 - Canonical target structure is `agent/actions/memory/providers/skills/mcp/contracts/domain/app`
 - `tools`: executable model-callable operations
+- `web_fetch`: stateless URL retrieval tool for reading/extraction
+- `browser`: interactive browser action surface; prefer `web_fetch` when no interaction is required
 - `event_handlers`: deterministic runtime handlers (e.g. reaction and `/todo`)
 - `skills`: active skill packs loaded as context for the reasoner; the model can load one through the `activate_skill` tool, but skill docs are not executable actions
 - `memory`: session-scoped transcript/summary management, long-term memory loading, and reasoner context assembly

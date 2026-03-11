@@ -18,9 +18,11 @@ def test_external_operation_profile_contains_external_tools() -> None:
         "write_file",
         "edit_file",
         "execute_shell_command",
-        "browser_use",
+        "web_fetch",
+        "browser",
         "get_current_time",
     }.issubset(names)
+    assert "browser_use" not in names
 
 
 def test_full_profile_contains_optional_tools() -> None:

@@ -37,11 +37,11 @@ These items are no longer backlog items:
 
 This is the actual outstanding backlog based on the current canonical docs.
 
-1. Replace `browser_use` fetch semantics with real browser automation
+1. Implement a real browser backend behind the new `browser(action=...)` surface
    - Current gap:
-     - Browser behavior is still not aligned with an OpenClaw-style `browser(action=...)` protocol.
+     - TeamBot now separates `web_fetch` from `browser`, but `browser` still returns MVP placeholder responses instead of driving a real browser.
    - Why it matters:
-     - The current browser path is still too shallow for real browsing workflows.
+     - The tool contract is now clearer, but real browsing workflows still cannot be completed end-to-end.
 
 2. Harden execution policy beyond the current high-risk gate
    - Current gap:
