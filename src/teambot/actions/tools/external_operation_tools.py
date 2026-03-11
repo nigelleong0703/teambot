@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from ...domain.models import AgentState
 from ...runtime_paths import get_agent_work_dir
+from ...skills.manager import SkillDoc, SkillService
 from .config import load_runtime_tool_limits
 
 _DEFAULT_EXEC_TIMEOUT_SECONDS = 20
@@ -65,11 +66,57 @@ def _truncate(text: str) -> str:
     return text[:max_chars] + "\n...<truncated>"
 
 
+def _skill_doc_payload(doc: SkillDoc) -> dict[str, str]:
+    return {
+        "name": doc.name,
+        "description": doc.description,
+        "when_to_use": doc.when_to_use,
+        "source": doc.source,
+        "path": doc.path,
+        "content": doc.content,
+    }
+
+
+def _existing_active_skill_docs(state: AgentState) -> list[dict[str, str]]:
+    raw = state.get("active_skill_docs")
+    if not isinstance(raw, list):
+        return []
+    docs: list[dict[str, str]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            docs.append({str(key): str(value) for key, value in item.items()})
+    return docs
+
+
 def _extract_first_url(text: str) -> str:
     match = _URL_PATTERN.search(text)
     if match is None:
         return ""
     return match.group(0).rstrip(".,!?;:)]}\"'")
+
+
+def activate_skill(state: AgentState) -> dict[str, object]:
+    params = _coerce_input(state)
+    skill_name = str(params.get("skill_name") or "").strip()
+    if not skill_name:
+        return {"message": "Error: `skill_name` is required.", "error": True}
+
+    doc = SkillService.get_skill_doc(skill_name)
+    if doc is None:
+        return {"message": f"Error: Unknown skill: {skill_name}", "error": True}
+
+    active_docs = _existing_active_skill_docs(state)
+    merged_docs = [item for item in active_docs if item.get("name") != doc.name]
+    merged_docs.append(_skill_doc_payload(doc))
+    active_names = [item["name"] for item in merged_docs if item.get("name")]
+
+    return {
+        "message": f"Activated skill: {doc.name}",
+        "_state_update": {
+            "active_skill_names": active_names,
+            "active_skill_docs": merged_docs,
+        },
+    }
 
 
 def read_file(state: AgentState) -> dict[str, object]:

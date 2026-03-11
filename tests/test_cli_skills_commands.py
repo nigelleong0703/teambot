@@ -33,7 +33,7 @@ def _build_cli(service: _ServiceStub) -> TeamBotCli:
     )
 
 
-def test_cli_skills_sync_command_triggers_reload(monkeypatch, capsys) -> None:
+def test_cli_skills_sync_command_hot_loads_without_runtime_reload(monkeypatch, capsys) -> None:
     from teambot.skills.manager import SkillService
 
     monkeypatch.setattr(
@@ -48,7 +48,7 @@ def test_cli_skills_sync_command_triggers_reload(monkeypatch, capsys) -> None:
 
     captured = capsys.readouterr().out
     assert handled is True
-    assert service.reload_calls == 1
+    assert service.reload_calls == 0
     assert "[skills] synced=2 skipped=1" in captured
 
 
@@ -63,7 +63,7 @@ def test_cli_skills_enable_disable_commands(monkeypatch, capsys) -> None:
     assert cli._handle_command("/skills enable brainstorming") is True
     assert cli._handle_command("/skills disable brainstorming") is True
     captured = capsys.readouterr().out
-    assert service.reload_calls == 2
+    assert service.reload_calls == 0
     assert "[skills] enabled=brainstorming ok=True" in captured
     assert "[skills] disabled=brainstorming ok=True" in captured
 
@@ -76,4 +76,3 @@ def test_cli_does_not_handle_removed_tools_command(capsys) -> None:
 
     assert handled is False
     assert capsys.readouterr().out == ""
-

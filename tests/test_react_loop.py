@@ -6,7 +6,6 @@ from typing import Any
 from teambot.contracts.contracts import ModelTextInvocationResult, ModelToolCall, ModelToolInvocationResult
 from teambot.agent.execution import observe_node
 from teambot.agent.graph import build_graph
-from teambot.skills.registry import SkillRegistry
 from teambot.actions.tools.registry import ToolManifest, ToolRegistry
 from teambot.domain.models import AgentState
 
@@ -60,6 +59,8 @@ def _state(text: str = "hi") -> AgentState:
         "react_done": False,
         "react_notes": [],
         "reasoning_note": "",
+        "active_skill_names": [],
+        "active_skill_docs": [],
         "selected_action": "",
         "selected_skill": "",
         "action_input": {},
@@ -100,7 +101,7 @@ def test_react_graph_continues_when_reasoner_emits_second_tool_call() -> None:
         ]
     )
 
-    graph = build_graph(SkillRegistry(), tool_registry=tools, reasoner=reasoner)
+    graph = build_graph(tool_registry=tools, reasoner=reasoner)
     result = graph.invoke(_state("do two things"))
 
     assert result["reply_text"] == "final answer"

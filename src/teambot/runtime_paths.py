@@ -66,20 +66,6 @@ def get_active_skills_dir(agent_home: str | Path | None = None) -> Path:
     return get_agent_system_dir(agent_home) / "active_skills"
 
 
-def get_dynamic_skills_dir(agent_home: str | Path | None = None) -> Path:
-    raw = os.getenv("SKILLS_DIR", "").strip()
-    if raw:
-        return Path(raw).expanduser().resolve()
-    return get_agent_system_dir(agent_home) / "skills"
-
-
-def resolve_dynamic_skills_dir(agent_home: str | Path | None = None) -> str | None:
-    path = get_dynamic_skills_dir(agent_home)
-    if path.exists():
-        return str(path)
-    return None
-
-
 def ensure_agent_home_layout(agent_home: str | Path | None = None) -> Path:
     home = get_agent_home(agent_home)
     (home / "system").mkdir(parents=True, exist_ok=True)

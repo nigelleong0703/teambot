@@ -5,7 +5,6 @@ from typing import Any
 
 from teambot.contracts.contracts import ModelTextInvocationResult, ModelToolCall, ModelToolInvocationResult
 from teambot.agent.graph import build_graph
-from teambot.skills.registry import SkillManifest, SkillRegistry
 from teambot.actions.tools.registry import ToolManifest, ToolRegistry
 from teambot.domain.models import AgentState
 
@@ -64,6 +63,8 @@ def _state(text: str) -> AgentState:
         "react_done": False,
         "react_notes": [],
         "reasoning_note": "",
+        "active_skill_names": [],
+        "active_skill_docs": [],
         "selected_skill": "",
         "skill_input": {},
         "skill_output": {},
@@ -73,11 +74,6 @@ def _state(text: str) -> AgentState:
 
 
 def test_reason_uses_planner_action_decision() -> None:
-    skills = SkillRegistry()
-    skills.register(
-        SkillManifest(name="create_task", description="task"),
-        lambda state: {"message": f"task:{state.get('skill_input', {}).get('title', '')}"},
-    )
     tools = ToolRegistry()
     tools.register(
         ToolManifest(name="get_current_time", description="time tool"),
@@ -92,7 +88,7 @@ def test_reason_uses_planner_action_decision() -> None:
         ]
     )
 
-    graph = build_graph(skills, tool_registry=tools, planner=planner)
+    graph = build_graph(tool_registry=tools, planner=planner)
     result = graph.invoke(_state("check my current time"))
 
     assert result["selected_skill"] == "get_current_time"
@@ -100,13 +96,11 @@ def test_reason_uses_planner_action_decision() -> None:
 
 
 def test_reason_uses_planner_final_decision() -> None:
-    skills = SkillRegistry()
-    skills.register(SkillManifest(name="create_task", description="task"), lambda _s: {"message": "task"})
     planner = _PlannerStub(
         tool_calls=[],
         text="Hello from planner final",
     )
-    graph = build_graph(skills, planner=planner)
+    graph = build_graph(planner=planner)
     result = graph.invoke(_state("hello"))
 
     assert result["react_done"] is True

@@ -4,7 +4,6 @@ from typing import Any
 
 from ..contracts.contracts import ActionManifest, ActionPluginRegistry
 from ..actions.event_handlers.registry import EventHandlerRegistry
-from ..skills.registry import SkillRegistry
 from ..actions.tools.registry import ToolRegistry
 from ..domain.models import AgentState
 
@@ -15,7 +14,6 @@ class PluginHost(ActionPluginRegistry):
     def __init__(self) -> None:
         self._actions: dict[str, ActionManifest] = {}
         self._event_handler_registry: EventHandlerRegistry | None = None
-        self._skill_registry: SkillRegistry | None = None
         self._tool_registry: ToolRegistry | None = None
         self._active_names: set[str] = set()
 
@@ -26,20 +24,6 @@ class PluginHost(ActionPluginRegistry):
                 name=manifest.name,
                 description=manifest.description,
                 source="event_handler",
-                timeout_seconds=manifest.timeout_seconds,
-                risk_level="low",
-            )
-            self._active_names.add(manifest.name)
-
-    def bind_skill_registry(self, registry: SkillRegistry) -> None:
-        self._skill_registry = registry
-        for manifest in registry.list_manifests():
-            if manifest.name in self._actions:
-                continue
-            self._actions[manifest.name] = ActionManifest(
-                name=manifest.name,
-                description=manifest.description,
-                source="skill",
                 timeout_seconds=manifest.timeout_seconds,
                 risk_level="low",
             )
@@ -101,13 +85,10 @@ class PluginHost(ActionPluginRegistry):
                 raise KeyError(f"event handler registry unavailable for action: {name}")
             output = self._event_handler_registry.invoke(name, state)
         else:
-            if self._skill_registry is None:
-                raise KeyError(f"skill registry unavailable for action: {name}")
-            output = self._skill_registry.invoke(name, state)
+            raise KeyError(f"unsupported action source: {action.source}")
 
         if not isinstance(output, dict):
             output = {"message": str(output)}
         output.setdefault("_action_source", action.source)
         output.setdefault("_action_name", action.name)
         return output
-

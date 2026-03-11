@@ -3,7 +3,6 @@
 from teambot.contracts.contracts import ModelToolCall, ModelToolInvocationResult
 from teambot.agent.graph import build_graph
 from teambot.agent.policy import ExecutionPolicyGate
-from teambot.skills.registry import SkillManifest, SkillRegistry
 from teambot.actions.tools.registry import ToolManifest, ToolRegistry
 from teambot.domain.models import AgentState
 
@@ -22,6 +21,8 @@ def _state() -> AgentState:
         "react_done": False,
         "react_notes": [],
         "reasoning_note": "",
+        "active_skill_names": [],
+        "active_skill_docs": [],
         "selected_skill": "",
         "skill_input": {},
         "skill_output": {},
@@ -50,17 +51,14 @@ class _Planner:
 
 
 def test_tool_action_uses_unified_contract() -> None:
-    skills = SkillRegistry()
     tools = ToolRegistry()
 
-    skills.register(SkillManifest(name="create_task", description=""), lambda _s: {"message": "ok"})
     tools.register(
         ToolManifest(name="tool_echo", description="echo", risk_level="low"),
         lambda state: {"message": f"echo:{state['user_text']}"},
     )
 
     graph = build_graph(
-        skills,
         tool_registry=tools,
         planner=_Planner("tool_echo"),
     )
@@ -73,17 +71,14 @@ def test_tool_action_uses_unified_contract() -> None:
 
 
 def test_high_risk_action_is_blocked_by_policy_gate() -> None:
-    skills = SkillRegistry()
     tools = ToolRegistry()
 
-    skills.register(SkillManifest(name="create_task", description=""), lambda _s: {"message": "ok"})
     tools.register(
         ToolManifest(name="exec_command", description="danger", risk_level="high"),
         lambda _state: {"message": "should not execute"},
     )
 
     graph = build_graph(
-        skills,
         tool_registry=tools,
         planner=_Planner("exec_command"),
         policy_gate=ExecutionPolicyGate(allow_high_risk=False),

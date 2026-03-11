@@ -90,7 +90,6 @@ def dispatch_slash_command(
         if len(parts) >= 2 and parts[1] == "sync":
             force = "--force" in parts[2:]
             synced, skipped = SkillService.sync_all(force=force)
-            reload_runtime()
             return SlashCommandAction(
                 handled=True,
                 output_lines=[f"[skills] synced={synced} skipped={skipped}"],
@@ -100,7 +99,6 @@ def dispatch_slash_command(
             if not name:
                 return SlashCommandAction(handled=True, output_lines=["[skills] usage: /skills enable <name>"])
             ok = SkillService.enable_skill(name, force=False)
-            reload_runtime()
             return SlashCommandAction(
                 handled=True,
                 output_lines=[f"[skills] enabled={name} ok={ok}"],
@@ -110,7 +108,6 @@ def dispatch_slash_command(
             if not name:
                 return SlashCommandAction(handled=True, output_lines=["[skills] usage: /skills disable <name>"])
             ok = SkillService.disable_skill(name)
-            reload_runtime()
             return SlashCommandAction(
                 handled=True,
                 output_lines=[f"[skills] disabled={name} ok={ok}"],

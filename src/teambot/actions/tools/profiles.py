@@ -5,12 +5,12 @@ TOOL_PROFILE_EXTERNAL_OPERATION = "external_operation"
 TOOL_PROFILE_FULL = "full"
 
 PROFILE_DESCRIPTIONS: dict[str, str] = {
-    TOOL_PROFILE_MINIMAL: "no tools (model can still answer directly)",
+    TOOL_PROFILE_MINIMAL: "activate_skill only (model can still answer directly)",
     TOOL_PROFILE_EXTERNAL_OPERATION: (
-        "read/write/edit file + execute shell + browser + current time"
+        "activate_skill + read/write/edit file + execute shell + browser + current time"
     ),
     TOOL_PROFILE_FULL: (
-        "external_operation + desktop_screenshot + send_file_to_user"
+        "activate_skill + external_operation + desktop_screenshot + send_file_to_user"
     ),
 }
 

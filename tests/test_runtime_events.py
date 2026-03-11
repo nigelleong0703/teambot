@@ -17,7 +17,6 @@ from teambot.domain.models import (
 )
 from teambot.memory.models import SessionCompactionResult
 from teambot.actions.tools.registry import ToolManifest, ToolRegistry
-from teambot.skills.registry import SkillRegistry
 
 
 def test_runtime_event_supports_agent_transcript_shapes() -> None:
@@ -109,6 +108,8 @@ def _state(text: str) -> AgentState:
         "react_done": False,
         "react_notes": [],
         "reasoning_note": "",
+        "active_skill_names": [],
+        "active_skill_docs": [],
         "selected_action": "",
         "selected_skill": "",
         "action_input": {},
@@ -150,7 +151,6 @@ def test_graph_emits_runtime_events_for_tool_then_final_turn() -> None:
     )
 
     graph = build_graph(
-        SkillRegistry(),
         tool_registry=tools,
         planner=reasoner,
         runtime_event_listener=events.append,
@@ -187,7 +187,6 @@ def test_tools_question_still_goes_through_reasoner() -> None:
     )
 
     graph = build_graph(
-        SkillRegistry(),
         tool_registry=tools,
         planner=reasoner,
     )
