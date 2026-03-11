@@ -87,10 +87,12 @@ def test_external_operation_tools_registration_and_risk_levels(
         "write_file",
         "edit_file",
         "execute_shell_command",
-        "browser_use",
+        "web_fetch",
+        "browser",
         "get_current_time",
     }
     assert expected.issubset(set(manifests.keys()))
+    assert "browser_use" not in manifests
     assert manifests["write_file"].risk_level == "high"
     assert manifests["edit_file"].risk_level == "high"
     assert manifests["execute_shell_command"].risk_level == "high"
@@ -141,24 +143,83 @@ def test_external_operation_tool_outputs_are_normalized_for_success_and_error(
     assert "message" in error_result
 
 
-def test_browser_use_extracts_url_from_natural_user_text(monkeypatch) -> None:
+def test_web_fetch_requires_explicit_url(monkeypatch) -> None:
+    monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
+    registry = build_tool_registry(provider_manager=None)
+    result = registry.invoke(
+        "web_fetch",
+        _state(user_text="check this page https://www.google.com"),
+    )
+
+    assert result.get("error") is True
+    assert "`url` is required" in str(result.get("message", "")).lower()
+
+
+def test_web_fetch_returns_metadata_and_truncated_content(monkeypatch) -> None:
     monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
     registry = build_tool_registry(provider_manager=None)
     from teambot.actions.tools import external_operation_tools as eot
 
-    def _raise_url_error(*args, **kwargs):
-        raise URLError("network disabled")
+    class _Response:
+        status = 200
 
-    monkeypatch.setattr(eot, "urlopen", _raise_url_error)
+        def __init__(self) -> None:
+            self.headers = {"Content-Type": "text/html; charset=utf-8"}
+
+        def read(self, _max_bytes: int) -> bytes:
+            return b"hello world body"
+
+        def geturl(self) -> str:
+            return "https://example.com/final"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+    monkeypatch.setattr(eot, "urlopen", lambda *args, **kwargs: _Response())
 
     result = registry.invoke(
-        "browser_use",
-        _state(user_text="open browser in visible and go to https://www.google.com"),
+        "web_fetch",
+        {
+            **_state(),
+            "action_input": {"url": "https://example.com", "max_chars": 5},
+        },
+    )
+
+    assert result.get("error") is not True
+    assert result.get("status_code") == 200
+    assert result.get("content_type") == "text/html; charset=utf-8"
+    assert result.get("final_url") == "https://example.com/final"
+    assert result.get("content") == "hello"
+    assert "Fetched https://example.com" in str(result.get("message", ""))
+
+
+def test_browser_requires_action(monkeypatch) -> None:
+    monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
+    registry = build_tool_registry(provider_manager=None)
+
+    result = registry.invoke("browser", _state())
+
+    assert result.get("error") is True
+    assert "`action` is required" in str(result.get("message", "")).lower()
+
+
+def test_browser_rejects_unsupported_action(monkeypatch) -> None:
+    monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
+    registry = build_tool_registry(provider_manager=None)
+
+    result = registry.invoke(
+        "browser",
+        {
+            **_state(),
+            "action_input": {"action": "start"},
+        },
     )
 
     assert result.get("error") is True
-    assert "https://www.google.com" in str(result.get("message", ""))
-    assert "required" not in str(result.get("message", "")).lower()
+    assert "unsupported browser action" in str(result.get("message", "")).lower()
 
 
 def test_runtime_working_dir_overrides_agent_home_workdir_for_shell_and_file_tools(

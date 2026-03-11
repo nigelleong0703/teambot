@@ -21,7 +21,8 @@ It is not a prompt-only chatbot wrapper. It is an execution runtime that combine
 - Built-in operational tools:
   - file read/write/edit
   - shell command execution
-  - browser fetch
+  - web fetch for URL retrieval
+  - browser action envelope for interactive workflows
   - current time
 - Skills lifecycle:
   - sync

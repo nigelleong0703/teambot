@@ -34,7 +34,7 @@ New code MUST follow the layout above.
   - Owns executable runtime actions.
   - This is the execution surface for the system.
   - It contains:
-    - `tools/`: model-callable operations such as `read_file`, `execute_shell_command`, `get_current_time`
+    - `tools/`: model-callable operations such as `read_file`, `execute_shell_command`, `web_fetch`, `browser`, `get_current_time`
     - `event_handlers/`: deterministic handlers such as `/todo` and reaction processing
 
 - `providers`

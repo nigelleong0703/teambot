@@ -2,7 +2,6 @@
 
 import datetime as dt
 import os
-import re
 import subprocess
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -17,8 +16,7 @@ from .config import load_runtime_tool_limits
 
 _DEFAULT_EXEC_TIMEOUT_SECONDS = 20
 _DEFAULT_BROWSER_TIMEOUT_SECONDS = 10
-_DEFAULT_OUTPUT_MAX_CHARS = 4000
-_URL_PATTERN = re.compile(r"https?://[^\s]+")
+_SUPPORTED_BROWSER_ACTIONS = {"open", "tabs", "snapshot", "act", "screenshot", "close"}
 
 
 def _coerce_input(state: AgentState) -> dict[str, object]:
@@ -87,12 +85,12 @@ def _existing_active_skill_docs(state: AgentState) -> list[dict[str, str]]:
             docs.append({str(key): str(value) for key, value in item.items()})
     return docs
 
-
-def _extract_first_url(text: str) -> str:
-    match = _URL_PATTERN.search(text)
-    if match is None:
-        return ""
-    return match.group(0).rstrip(".,!?;:)]}\"'")
+def _truncate_to_limit(text: str, limit: int) -> str:
+    if limit <= 0:
+        return text
+    if len(text) <= limit:
+        return text
+    return text[:limit]
 
 
 def activate_skill(state: AgentState) -> dict[str, object]:
@@ -286,18 +284,12 @@ def execute_shell_command(state: AgentState) -> dict[str, object]:
     }
 
 
-def browser_use(state: AgentState) -> dict[str, object]:
+def web_fetch(state: AgentState) -> dict[str, object]:
     params = _coerce_input(state)
     url = str(params.get("url") or "").strip()
     if not url:
-        user_text = str(state.get("user_text", "")).strip()
-        if user_text.startswith("http://") or user_text.startswith("https://"):
-            url = user_text
-        else:
-            url = _extract_first_url(user_text)
-    if not url:
         return {
-            "message": "Error: `url` is required for browser_use.",
+            "message": "Error: `url` is required for web_fetch.",
             "error": True,
         }
 
@@ -312,13 +304,15 @@ def browser_use(state: AgentState) -> dict[str, object]:
     )
     if timeout_seconds <= 0:
         timeout_seconds = _DEFAULT_BROWSER_TIMEOUT_SECONDS
+    max_chars = _to_int(params.get("max_chars"), 0)
 
-    request = Request(url, headers={"User-Agent": "teambot-external-operation-tools/1.0"})
+    request = Request(url, headers={"User-Agent": "teambot-web-fetch/1.0"})
     try:
         with urlopen(request, timeout=timeout_seconds) as response:
             status_code = int(getattr(response, "status", 200))
             body = response.read(8192).decode("utf-8", errors="replace")
             content_type = response.headers.get("Content-Type", "")
+            final_url = str(getattr(response, "geturl", lambda: url)() or url)
     except HTTPError as exc:
         return {
             "message": f"Error: HTTP {exc.code} while loading {url}.",
@@ -328,14 +322,50 @@ def browser_use(state: AgentState) -> dict[str, object]:
     except URLError as exc:
         return {"message": f"Error: Failed to load {url}: {exc.reason}", "error": True}
     except Exception as exc:  # pragma: no cover - network/runtime dependent
-        return {"message": f"Error: browser_use failed: {exc}", "error": True}
+        return {"message": f"Error: web_fetch failed: {exc}", "error": True}
 
-    preview = _truncate(body.strip())
+    content = body.strip()
+    if max_chars > 0:
+        content = _truncate_to_limit(content, max_chars)
+    preview = _truncate(content)
     return {
         "message": f"Fetched {url} (status={status_code}, content_type={content_type}).\n\n{preview}",
         "url": url,
+        "final_url": final_url,
         "status_code": status_code,
         "content_type": content_type,
+        "content": content,
+    }
+
+
+def browser_use(state: AgentState) -> dict[str, object]:
+    """Legacy compatibility alias for the old fetch-style browser tool."""
+    return web_fetch(state)
+
+
+def browser(state: AgentState) -> dict[str, object]:
+    params = _coerce_input(state)
+    action = str(params.get("action") or "").strip().lower()
+    if not action:
+        return {
+            "message": "Error: `action` is required for browser.",
+            "error": True,
+        }
+    if action not in _SUPPORTED_BROWSER_ACTIONS:
+        supported = ", ".join(sorted(_SUPPORTED_BROWSER_ACTIONS))
+        return {
+            "message": f"Error: Unsupported browser action '{action}'. Supported actions: {supported}.",
+            "error": True,
+        }
+
+    return {
+        "message": (
+            f"Browser action '{action}' is recognized but not yet implemented in TeamBot MVP. "
+            "Use web_fetch for URL retrieval when no interaction is required."
+        ),
+        "error": True,
+        "blocked": True,
+        "action": action,
     }
 
 

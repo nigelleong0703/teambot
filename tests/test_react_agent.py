@@ -25,6 +25,7 @@ def test_runtime_reload_reflects_profile_change(monkeypatch) -> None:
         "write_file",
         "edit_file",
         "execute_shell_command",
-        "browser_use",
+        "web_fetch",
+        "browser",
         "get_current_time",
     } <= names_after

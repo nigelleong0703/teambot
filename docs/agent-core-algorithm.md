@@ -145,8 +145,10 @@ Behavior:
 ### 3.2 Built-in Tool Profiles
 
 - `minimal`: `activate_skill` only
-- `external_operation`: `activate_skill`, `read_file`, `write_file`, `edit_file`, `execute_shell_command`, `browser_use`, `get_current_time`
+- `external_operation`: `activate_skill`, `read_file`, `write_file`, `edit_file`, `execute_shell_command`, `web_fetch`, `browser`, `get_current_time`
 - `full`: external_operation + `desktop_screenshot` + `send_file_to_user`
+- `web_fetch` is the narrow stateless URL retrieval tool.
+- `browser` uses an OpenClaw-style `action` envelope and is reserved for interactive page workflows.
 - File/shell tools resolve relative paths and command cwd from `runtime_working_dir`, which is initialized from `AGENT_HOME/work`.
 
 ### 3.3 High-Risk Tools (Policy-Gated)
@@ -324,7 +326,7 @@ Runtime call chain:
 
 1. Rolling-summary generation now depends on provider availability after the reply path. If no summary-capable model role is available, session compaction is skipped and the raw transcript window continues to grow until a model is configured.
 2. Reasoner output quality depends on provider/model behavior and prompt discipline.
-3. Browser automation is still not aligned to the OpenClaw-style `browser(action=...)` protocol.
+3. The runtime now exposes `browser(action=...)`, but the interactive browser backend is still an MVP placeholder rather than a full real-browser automation path.
 4. Streaming smoothness depends on provider chunk granularity.
 5. The terminal-native TUI deliberately favors scrollback stability over rich in-place layout control, so visual structure is simpler than a full-screen app.
 
