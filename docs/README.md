@@ -30,8 +30,8 @@ System-managed paths (do not reorganize here):
 Current runtime terminology baseline:
 - `config/`: repo-tracked runtime JSON config such as provider model definitions and profile bindings
 - `agent`: the `agent/` package contains the ReAct loop, runtime owner, prompt assembly, and application service
+- Canonical target structure is `app/gateway/channels/agent/actions/memory/providers/skills/mcp/contracts/domain`
 - reasoner prompt/payload context composition is finalized in `agent/reasoner_context.py`; memory and skill layers remain separate providers
-- Canonical target structure is `agent/actions/memory/providers/skills/mcp/contracts/domain/app`
 - `tools`: executable model-callable operations
 - `web_fetch`: stateless URL retrieval tool for reading/extraction
 - `browser`: interactive browser action surface; prefer `web_fetch` when no interaction is required
@@ -57,6 +57,8 @@ Current runtime terminology baseline:
   - `thinking_delta`
   - `final_delta`
 - `app/tui.py`: terminal-native TUI entrypoint built on the same `stream_event(...)` contract and renders a Claude-like workbench without taking over terminal scrollback
+- `gateway`: HTTP ingress orchestration layer that routes SDK-backed channel runtimes and dispatches normalized envelopes into `AgentService`
+- `channels`: channel runtime layer for platform-specific webhook/bot SDK bridges; current phase-2 runtimes cover Slack Bolt, python-telegram-bot, pywa, lark-oapi, and Discord interactions ingress
 
 ## Reference Docs
 

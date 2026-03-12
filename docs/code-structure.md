@@ -8,6 +8,7 @@ This is the single source of truth for TeamBot code layout.
 config/               # repo-tracked runtime JSON config (canonical: config/config.json)
 src/teambot/
   app/                 # entrypoints (API/CLI/bootstrap)
+  gateway/             # ingress orchestration and envelope-to-agent dispatch
   agent/               # ReAct loop, runtime owner, and application service
   actions/             # executable actions: tools + deterministic event handlers
   memory/              # transcript context assembly, long-term memory, compaction
@@ -17,7 +18,7 @@ src/teambot/
   contracts/           # cross-module protocols and thin shared interfaces
   domain/              # TeamBot business objects and persistent state shapes
   workflows/           # complex execution engine (optional path)
-  channels/            # multi-channel adapters
+  channels/            # multi-channel SDK bridges and shared envelope models
 ```
 
 This is the canonical current layout.
@@ -29,6 +30,15 @@ New code MUST follow the layout above.
   - Owns the ReAct execution path.
   - Expected contents: `runtime.py`, `service.py`, `graph.py`, `reason.py`, `reasoner_context.py`, `execution.py`, `state.py`, `policy.py`.
   - This is where you change how the agent runs.
+
+- `gateway`
+  - Owns ingress orchestration between transport-facing channel runtimes and `AgentService`.
+  - Expected contents: request dispatch, ingress response models, and envelope-to-agent-event mapping.
+  - This is where you change how inbound HTTP events are routed into the runtime.
+
+- `channels`
+  - Owns platform SDK bridges plus the neutral ingress DTOs shared with `gateway`.
+  - SDK-backed runtimes live under `channels/runtimes/`; legacy generic adapters remain only as compatibility fallbacks for non-SDK routes.
 
 - `actions`
   - Owns executable runtime actions.
@@ -66,8 +76,9 @@ New code MUST follow the layout above.
 ## 3. Dependency Direction
 
 Allowed:
-- `app -> agent/actions/memory/providers/skills/mcp/domain/contracts/channels/workflows`
-- `channels -> agent/actions/memory/providers/skills/mcp/domain/contracts`
+- `app -> gateway/channels/agent/actions/memory/providers/skills/mcp/domain/contracts/workflows`
+- `gateway -> channels/agent/domain/contracts`
+- `channels -> domain/contracts`
 - `workflows -> agent/actions/memory/providers/skills/mcp/domain/contracts`
 - `agent -> actions/memory/providers/skills/mcp/domain/contracts`
 - `actions -> domain/contracts`
@@ -77,9 +88,10 @@ Allowed:
 - `mcp -> actions/providers/contracts`
 
 Disallowed:
-- `domain -> agent/actions/memory/providers/skills/mcp/channels/workflows`
-- `agent -> channels`
+- `domain -> gateway/agent/actions/memory/providers/skills/mcp/channels/workflows`
+- `agent -> gateway/channels`
 - `actions -> channels`
+- `channels -> agent`
 - `providers -> agent`
 - `contracts -> provider SDK wrappers`
 - `contracts -> runtime implementations`
@@ -92,8 +104,10 @@ Disallowed:
 - Storage logic goes to `domain/store`.
 - Runtime-local persisted state such as SQLite-backed conversation history and processed-event caches also belongs under `domain/store`.
 - Session-memory management, long-term memory loading, and compaction policy belong under `memory/`.
+- Ingress orchestration, request verification flow, and adapter dispatch belong under `gateway/`.
 - ReAct loop logic goes to `agent/`.
 - `agent/` should stay focused on `runtime.py`, `service.py`, `graph.py`, `reason.py`, `reasoner_context.py`, `execution.py`, `state.py`, and `policy.py`.
+- Channel-specific request parsing and normalization belong under `channels/`.
 - Final reasoner request composition belongs under `agent/`; `memory/` and `skills/` should provide bounded context inputs rather than directly owning the final request envelope.
 - Executable model-callable operations belong under `actions/tools/`.
 - Deterministic event-driven actions belong under `actions/event_handlers/`.
