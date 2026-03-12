@@ -9,6 +9,7 @@
 - 主循环：`reason -> act -> observe -> (loop | compose_reply)`
 - `reason` 是 reasoner + deterministic guards（输出 native tool call 或 final text）
 - `tools`/`event_handlers`/`skills` 分层，其中 `skills` 只提供 reasoner context；模型通过 `activate_skill` tool 把某个 skill 装进后续上下文
+- todo 不再走 `/todo` 命令；改成 Claude Code `TodoWrite` 风格的 `todo_read` / `todo_write` tools，并把状态持久化到 `AGENT_HOME/work/todo.md`
 - 内部 runtime 采用 CoPaw 风格：tool profile + namesake 策略 + active-only skills + MCP 注入
 - 线程路由与事件幂等是硬约束
 
@@ -76,7 +77,10 @@
   tool registry 与 builtin tool surface（profile 驱动；包含 `activate_skill` 这种 context-loading control tool）
 
 - `src/teambot/actions/event_handlers/*`
-  deterministic event handler registry（`create_task` / `handle_reaction`）
+  deterministic event handler registry（当前只有 `handle_reaction`）
+
+- `src/teambot/todo/*`
+  document-backed todo 模块：`TodoItem/TodoList`、Markdown codec、repository、service
 
 - `src/teambot/agent/orchestrator.py`
   runtime orchestrator（只做 registries + tools + MCP wiring）
@@ -89,6 +93,7 @@
 
 - `src/teambot/skills/*`
   skill docs lifecycle + reasoner skill-context assembly
+  repo builtin skill docs 应保持最小且 runtime-specific，不承载通用工具使用说明
 
 - `src/teambot/providers/*`
   provider manager + client 实现（含 LangChain 适配）；调用方通过命名 model profiles（如 `agent`、`summary`）拿到具体模型绑定
@@ -150,6 +155,7 @@
 - `src/teambot/actions/tools/external_operation_tools.py`
   - `activate_skill`
   - `read_file` / `write_file` / `edit_file` / `execute_shell_command` / `web_fetch` / `browser` / `get_current_time`
+  - `todo_read` / `todo_write`
   - `desktop_screenshot` / `send_file_to_user`（full profile）
 - `src/teambot/mcp/manager.py` + `bridge.py`
   - MCP tools 加载并桥接到同一 tool registry
@@ -206,10 +212,13 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - 当前 CLI 已经以 `RuntimeEvent` 作为主 transcript 数据源，不再主要依赖事后 `execution_trace` 拼接
 - tool surface 由 `TOOLS_PROFILE` 决定（`minimal|external_operation|full`）
 - `activate_skill` 是内建 low-risk control tool，所有 profile 都会带上；`minimal` profile 只保留它
+- `todo_read` / `todo_write` 是 external_operation/full profile 的内建低风险 tools；它们把 todo state 持久化到 `todo.md`
+- reasoner 对 todo 有显式纪律约束：多步骤工作开始前应写 todo；恢复工作或不确定当前状态时先 `todo_read`；非空 todo list 必须保持恰好一个 `in_progress`
 - CLI 支持 `--tools-profile` 与 `--tools-config <json>` 做 session 级覆盖（profile + per-tool enable/disable）
 - `AGENT_HOME` 是 agent 的唯一工作根：
   - prompt 文件来自 `AGENT_HOME/system`
   - file/shell tools 默认在 `AGENT_HOME/work` 执行
+  - todo list 文档保存在 `AGENT_HOME/work/todo.md`
   - 会话与幂等缓存持久化在 `AGENT_HOME/state/teambot.sqlite`
   - reasoner skill docs 默认来自 `src/teambot/skills/packs`、`~/.teambot/skills`、`AGENT_HOME/skills`
 - CLI 始终使用 transcript 视图；`debug` 和 `stream` 是可见性开关，不是 mode

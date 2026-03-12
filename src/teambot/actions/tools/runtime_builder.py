@@ -25,6 +25,8 @@ def _ordered_profile_names(
         "web_fetch",
         "browser",
         "get_current_time",
+        "todo_read",
+        "todo_write",
         "desktop_screenshot",
         "send_file_to_user",
         "tool_echo",

@@ -13,6 +13,10 @@ def _state() -> AgentState:
         "event_type": "message",
         "user_text": "hello",
         "reaction": None,
+        "runtime_working_dir": "/tmp/teambot-work",
+        "selected_action": "",
+        "action_input": {},
+        "action_output": {},
         "react_step": 0,
         "react_max_steps": 3,
         "react_done": False,
@@ -40,7 +44,7 @@ def test_plugin_host_unifies_event_handler_and_tool_actions() -> None:
     host.bind_tool_registry(tools)
 
     names = {action.name for action in host.list_actions()}
-    assert {"create_task", "tool_echo"} <= names
+    assert {"handle_reaction", "tool_echo"} <= names
 
     result = host.invoke("tool_echo", _state())
     assert result["message"] == "echo:hello"
@@ -52,8 +56,8 @@ def test_plugin_host_activation_toggle() -> None:
     host = PluginHost()
     host.bind_event_handler_registry(build_event_handler_registry())
 
-    assert host.has_action("create_task") is True
-    assert host.deactivate("create_task") is True
-    assert host.has_action("create_task") is False
-    assert host.activate("create_task") is True
-    assert host.has_action("create_task") is True
+    assert host.has_action("handle_reaction") is True
+    assert host.deactivate("handle_reaction") is True
+    assert host.has_action("handle_reaction") is False
+    assert host.activate("handle_reaction") is True
+    assert host.has_action("handle_reaction") is True

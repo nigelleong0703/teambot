@@ -39,10 +39,9 @@ async def test_bootstrapped_service_handles_message_and_reaction() -> None:
         channel_id="C1",
         thread_ts="1.1",
         user_id="U1",
-        text="/todo write docs",
+        text="write docs",
     )
     message_result = await service.process_event(message_event)
-    assert message_result.skill_name in {"create_task", ""}
     assert message_result.text
 
     reaction_event = InboundEvent(

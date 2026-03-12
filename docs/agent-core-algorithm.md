@@ -49,7 +49,7 @@ flowchart TD
 flowchart TD
     R0["reason_node"] --> R1{"react_step >= react_max_steps?"}
     R1 -- "yes" --> R1D["react_done=true, finish"]
-    R1 -- "no" --> R2{"deterministic route? (reaction, /todo)"}
+    R1 -- "no" --> R2{"deterministic route? (reaction only)"}
     R2 -- "yes" --> R2A["select deterministic event_handler action or finish directly"]
     R2 -- "no" --> R3{"reasoner available?"}
     R3 -- "yes" --> R4["invoke reasoner with native tools"]
@@ -82,7 +82,7 @@ flowchart TD
 
 - File: `src/teambot/agent/reason.py`
 - Responsibilities:
-  - deterministic routes for event handlers (`reaction_added`, `/todo`)
+  - deterministic routes for event handlers (`reaction_added`)
   - reasoner call for native model tool-calling or direct final text
   - consume the dedicated request-context assembler from `src/teambot/agent/reasoner_context.py`
 
@@ -115,6 +115,18 @@ Reasoner payload includes:
 Reasoner tool schema includes `tool` actions only.
 Deterministic `event_handler` actions are excluded from model tool schema.
 Skill docs are guidance context only; they are not executable actions by themselves. The model can request skill activation through the low-risk `activate_skill` tool, which loads the chosen `SKILL.md` into runtime state for the next reasoner turn.
+Todo persistence is model-driven through dedicated runtime tools:
+- `todo_read`
+- `todo_write`
+
+The todo source of truth is `todo.md` under `runtime_working_dir` (default: `AGENT_HOME/work/todo.md`).
+`todo_write` follows full-list replacement semantics modeled after Claude Code `TodoWrite`, then persists the canonical Markdown document.
+Reasoner guidance explicitly treats todo as a model-maintained progress tracker for multi-step work:
+- use `todo_write` before substantial multi-step work begins
+- call `todo_read` when resuming or when current todo state is unclear
+- keep exactly one `in_progress` item whenever the list is non-empty
+- update the list immediately after each completed step rather than batching updates
+`TodoService` enforces the non-empty progress shape at write time; lists with zero or multiple `in_progress` items are rejected unless every item is `completed`.
 
 Reasoner output is:
 - native `tool_calls` -> `selected_action` + `action_input`
@@ -140,16 +152,17 @@ Behavior:
 ### 3.1 Action Sources
 
 - `tool`: `activate_skill`, external-operation tools, and optional MCP bridged tools
-- `event_handler`: deterministic handlers (`create_task`, `handle_reaction`)
+- `event_handler`: deterministic handlers (`handle_reaction`)
 
 ### 3.2 Built-in Tool Profiles
 
 - `minimal`: `activate_skill` only
-- `external_operation`: `activate_skill`, `read_file`, `write_file`, `edit_file`, `execute_shell_command`, `web_fetch`, `browser`, `get_current_time`
+- `external_operation`: `activate_skill`, `read_file`, `write_file`, `edit_file`, `execute_shell_command`, `web_fetch`, `browser`, `get_current_time`, `todo_read`, `todo_write`
 - `full`: external_operation + `desktop_screenshot` + `send_file_to_user`
 - `web_fetch` is the narrow stateless URL retrieval tool.
 - `browser` uses an OpenClaw-style `action` envelope and is reserved for interactive page workflows.
 - File/shell tools resolve relative paths and command cwd from `runtime_working_dir`, which is initialized from `AGENT_HOME/work`.
+- Todo tools resolve and persist `todo.md` from that same `runtime_working_dir`.
 
 ### 3.3 High-Risk Tools (Policy-Gated)
 
@@ -161,6 +174,7 @@ Behavior:
 ### 3.4 Skills Runtime Semantics
 
 - Repo builtin skill docs live under `src/teambot/skills/packs`.
+- Repo builtin skill docs should stay minimal and runtime-specific; generic tool-usage advice does not belong there.
 - Shared skill docs live under `~/.teambot/skills`.
 - Agent-local skill docs live under `AGENT_HOME/skills`.
 - Runtime loads builtin + shared + agent-local skill metadata into reasoner context by default.

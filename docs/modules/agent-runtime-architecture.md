@@ -243,7 +243,7 @@ This makes the downstream execution layer deterministic.
 
 Key points:
 
-- event handlers like reaction and `/todo` are routed before the model
+- reaction events are routed before the model through deterministic event handlers
 - model tool-calling is translated into runtime action selection
 - if no provider is available, the system falls back safely to a deterministic reply
 
