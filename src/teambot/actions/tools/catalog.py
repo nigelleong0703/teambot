@@ -5,13 +5,15 @@ from typing import Any
 from ...contracts.contracts import ModelRoleInvoker
 from ...domain.models import AgentState
 from .external_operation_tools import (
-    browser_use,
+    activate_skill,
+    browser,
     desktop_screenshot,
     edit_file,
     execute_shell_command,
     get_current_time,
     read_file,
     send_file_to_user,
+    web_fetch,
     write_file,
 )
 from .registry import ToolHandler, ToolManifest
@@ -41,6 +43,23 @@ def builtin_tool_definitions(
     # provider_manager reserved for future provider-native tool integrations.
     _ = provider_manager
     return {
+        "activate_skill": (
+            ToolManifest(
+                name="activate_skill",
+                description="Load a skill document into the active reasoner context by skill name.",
+                input_schema=_schema(
+                    properties={
+                        "skill_name": {
+                            "type": "string",
+                            "description": "Exact skill name from the available skill catalog.",
+                        }
+                    },
+                    required=["skill_name"],
+                ),
+                risk_level="low",
+            ),
+            activate_skill,
+        ),
         "read_file": (
             ToolManifest(
                 name="read_file",
@@ -103,20 +122,61 @@ def builtin_tool_definitions(
             ),
             execute_shell_command,
         ),
-        "browser_use": (
+        "web_fetch": (
             ToolManifest(
-                name="browser_use",
-                description="Fetch URL content over HTTP(S) and return a preview.",
+                name="web_fetch",
+                description=(
+                    "Fetch content from a specific URL for reading or extraction. "
+                    "Prefer this when the user provides a URL and no page interaction is required."
+                ),
                 input_schema=_schema(
                     properties={
                         "url": {"type": "string", "description": "HTTP(S) URL."},
                         "timeout_seconds": {"type": "integer", "description": "Optional timeout in seconds."},
+                        "max_chars": {
+                            "type": "integer",
+                            "description": "Optional maximum response characters to keep.",
+                        },
                     },
                     required=["url"],
                 ),
                 risk_level="low",
             ),
-            browser_use,
+            web_fetch,
+        ),
+        "browser": (
+            ToolManifest(
+                name="browser",
+                description=(
+                    "Control a real browser for interactive page workflows. "
+                    "Use this only when page interaction, rendered-page inspection, screenshots, "
+                    "or browser session state is required. Prefer web_fetch for simple URL content retrieval."
+                ),
+                input_schema=_schema(
+                    properties={
+                        "action": {
+                            "type": "string",
+                            "enum": ["open", "tabs", "snapshot", "act", "screenshot", "close"],
+                            "description": "Browser action to perform.",
+                        },
+                        "url": {
+                            "type": "string",
+                            "description": "Optional URL for open-like actions.",
+                        },
+                        "target_id": {
+                            "type": "string",
+                            "description": "Optional target/tab identifier for follow-up browser actions.",
+                        },
+                        "request": {
+                            "type": "object",
+                            "description": "Optional nested action request payload for act-style browser calls.",
+                        },
+                    },
+                    required=["action"],
+                ),
+                risk_level="low",
+            ),
+            browser,
         ),
         "get_current_time": (
             ToolManifest(
@@ -186,4 +246,3 @@ def builtin_tool_definitions(
             execute_shell_command,
         ),
     }
-

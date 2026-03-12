@@ -8,7 +8,7 @@
 
 - 主循环：`reason -> act -> observe -> (loop | compose_reply)`
 - `reason` 是 reasoner + deterministic guards（输出 native tool call 或 final text）
-- `tools`/`event_handlers`/`skills` 分层，其中 `skills` 只提供 reasoner context，不进入可执行 action surface
+- `tools`/`event_handlers`/`skills` 分层，其中 `skills` 只提供 reasoner context；模型通过 `activate_skill` tool 把某个 skill 装进后续上下文
 - 内部 runtime 采用 CoPaw 风格：tool profile + namesake 策略 + active-only skills + MCP 注入
 - 线程路由与事件幂等是硬约束
 
@@ -64,16 +64,16 @@
   统一 composition root（API/CLI 都从这里构建 service）
 
 - `src/teambot/agent/runtime.py`
-  ReAct runtime owner（组装 tools/skills/mcp + 构建 graph + invoke）
+  ReAct runtime owner（组装 event handlers/tools/mcp + 构建 graph + invoke）
 
 - `src/teambot/agent/service.py`
   应用层 service，负责 `process_event`、`stream_event`、会话存储和回复组装
 
 - `src/teambot/agent/*`
-  核心 ReAct 节点与循环控制（`graph.py` / `reason.py` / `execution.py` / `state.py` / `policy.py` / `service.py`）
+  核心 ReAct 节点与循环控制（`graph.py` / `reason.py` / `reasoner_context.py` / `execution.py` / `state.py` / `policy.py` / `service.py`）
 
 - `src/teambot/actions/tools/*`
-  tool registry 与 builtin tool surface（profile 驱动）
+  tool registry 与 builtin tool surface（profile 驱动；包含 `activate_skill` 这种 context-loading control tool）
 
 - `src/teambot/actions/event_handlers/*`
   deterministic event handler registry（`create_task` / `handle_reaction`）
@@ -114,6 +114,9 @@
 - `src/teambot/memory/context.py`
   `MemoryContextAssembler`：只负责把 session memory context 和 long-term memory 合并成 `recent_turns` / `conversation_summary` / `memory_system_prompt_suffix`
 
+- `src/teambot/agent/reasoner_context.py`
+  `ReasonerRequestContext` 组装层：把 memory context、skill catalog metadata、active skill docs 和 runtime-local context（如 `runtime_working_dir`）合并成 reasoner request 可消费的 prompt/payload 片段
+
 - `src/teambot/memory/longterm.py`
   `memory.md` 长期记忆加载器（默认读 `AGENT_HOME/system/memory.md`）
 
@@ -141,11 +144,12 @@
   - 读取 `TOOLS_PROFILE` / `TOOLS_NAMESAKE_STRATEGY`
   - 调用 `runtime_builder` 组装 builtin tool surface
 - `src/teambot/actions/tools/catalog.py`
-  - external-operation 工具定义（manifest + handler）
+  - builtin 工具定义（manifest + handler），包括 `activate_skill`
 - `src/teambot/actions/tools/runtime_builder.py`
   - profile 选集 + namesake 冲突策略
 - `src/teambot/actions/tools/external_operation_tools.py`
-  - `read_file` / `write_file` / `edit_file` / `execute_shell_command` / `browser_use` / `get_current_time`
+  - `activate_skill`
+  - `read_file` / `write_file` / `edit_file` / `execute_shell_command` / `web_fetch` / `browser` / `get_current_time`
   - `desktop_screenshot` / `send_file_to_user`（full profile）
 - `src/teambot/mcp/manager.py` + `bridge.py`
   - MCP tools 加载并桥接到同一 tool registry
@@ -170,7 +174,8 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 
 - `reason` 优先级：`max-step` -> deterministic direct routes -> reasoner
 - `AgentService` 不再直接操作 transcript/compaction；session-scoped history 和 rolling summary 统一走 `SessionMemoryManager`
-- reasoner payload 现在除了当前输入和 `last_observation`，还会包含按同一套 char budget 选出来的 `recent_turns` 和可选 `conversation_summary`
+- reasoner payload 现在除了当前输入和 `last_observation`，还会包含按同一套 char budget 选出来的 `recent_turns`、可选 `conversation_summary`，以及可选 `runtime_working_dir`
+- reasoner 现在默认拿到 skill catalog metadata（`name` / `description` / `when_to_use`）；只有激活后的 skill 才会把正文作为 `active_skill_docs` 带进下一轮
 - long-term memory 通过独立 provider 读取 `memory.md`，再追加到 system prompt；它和 session memory 是分开的两层
 - provider 层现在按 `profile -> model_id -> model definition` 绑定工作；当前内置 profile 是 `agent` 和 `summary`
 - 配置分两层：
@@ -190,6 +195,8 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - `MODEL_PROFILES_JSON` 仅保留兼容旧配置，不再是推荐入口
 - `react_done=true` 会直接走 `compose_reply`
 - `observe` 阶段只记录 tool observation；是否继续由下一轮 reasoner 是否继续发 tool call 决定
+- `web_fetch` 是默认 URL 抓取工具；用户给了明确链接且不需要交互时优先用它
+- `browser` 只用于交互式页面流程；当前已切到 `action` 协议，但真实浏览器 backend 仍是后续工作
 - `observe` 产出的 `execution_trace` 现在包含 action input，供 CLI/API reply 做展示
 - runtime 还会发 `RuntimeEvent`，给 CLI/TUI 这种 transcript 客户端按 step 渲染
 - session memory 如果发生 compact，会额外发一个 `memory_compacted` runtime event，让 CLI/TUI 明确显示 `Compacted summary`
@@ -198,6 +205,7 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
   - `model_token -> final_delta`
 - 当前 CLI 已经以 `RuntimeEvent` 作为主 transcript 数据源，不再主要依赖事后 `execution_trace` 拼接
 - tool surface 由 `TOOLS_PROFILE` 决定（`minimal|external_operation|full`）
+- `activate_skill` 是内建 low-risk control tool，所有 profile 都会带上；`minimal` profile 只保留它
 - CLI 支持 `--tools-profile` 与 `--tools-config <json>` 做 session 级覆盖（profile + per-tool enable/disable）
 - `AGENT_HOME` 是 agent 的唯一工作根：
   - prompt 文件来自 `AGENT_HOME/system`
@@ -211,6 +219,7 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - TUI 默认优先使用 `prompt_toolkit` 多行输入：`Enter` 提交，`Esc` 后跟 `Enter` 或 `Ctrl+J` 插入换行；如果依赖不可用则退回旧的单行输入
 - CLI/TUI 在 active run 期间会临时关闭终端输入回显，并在显示新 prompt 前清空输入缓冲，避免运行中误输入的按键串到下一条消息或显示成 `^R` 之类的杂讯
 - skills 默认来自 builtin + shared + agent-local 三层；只注入 reasoner context；不会注册成 executable action
+- `/skills sync|enable|disable` 现在只改 skill docs catalog，不再触发 runtime reload；下一轮 reasoner 会自然读到变更
 - CLI/TUI 共用 slash command surface：`/help`、`/skills`、`/skills sync [--force]`、`/skills enable <name>`、`/skills disable <name>`、`/newthread`、`/stream on|off`、`/reaction <name>`、`/exit`
 - `/tools` 已从用户可见 slash surface 移除
 - MCP 开启时通过 bridge 注入同一 action surface（`MCP_ENABLED=true`）

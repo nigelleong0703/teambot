@@ -87,6 +87,9 @@
   - Relevant unit/integration tests pass
   - No obvious regression in core flow (`reason -> act -> observe -> compose_reply`)
   - Documentation updated for behavior changes
+- Do not assume `pytest` is available on `PATH`.
+- Prefer `uv run --with-requirements requirements-dev.txt pytest ...` for repo-local test runs.
+- If using a Python module invocation instead, first confirm which Python interpreter/environment has `pytest` installed; do not blindly use `python -m pytest`.
 - If tests cannot run, explicitly document:
   - What was not run
   - Why it was not run

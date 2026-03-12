@@ -17,11 +17,13 @@ def _ordered_profile_names(
 ) -> list[str]:
     # Keep deterministic order for stable manifests/tests.
     order = [
+        "activate_skill",
         "read_file",
         "write_file",
         "edit_file",
         "execute_shell_command",
-        "browser_use",
+        "web_fetch",
+        "browser",
         "get_current_time",
         "desktop_screenshot",
         "send_file_to_user",
@@ -29,6 +31,7 @@ def _ordered_profile_names(
         "exec_command",
     ]
     selected = resolve_tool_profile(profile)
+    selected.add("activate_skill")
     if enable_echo_tool:
         selected.add("tool_echo")
     if enable_exec_alias:
@@ -84,4 +87,3 @@ def build_runtime_tool_registry(
         registered_names.add(manifest.name)
 
     return registry
-

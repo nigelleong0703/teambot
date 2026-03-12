@@ -84,6 +84,7 @@ flowchart TD
 - Responsibilities:
   - deterministic routes for event handlers (`reaction_added`, `/todo`)
   - reasoner call for native model tool-calling or direct final text
+  - consume the dedicated request-context assembler from `src/teambot/agent/reasoner_context.py`
 
 #### 2.1 Reasoner Prompt Source
 
@@ -95,9 +96,11 @@ Base system prompt is composed from `AGENT_HOME/system` markdown files in this o
 
 Then runtime appends:
 - reasoner guidance text
-- loaded skill context summary (if available)
+- available skill catalog summary and active skill summary (if available)
 - optional long-term memory loaded from `AGENT_HOME/system/memory.md`
 - internal visibility rule: user answers must describe capabilities without exposing raw tool/skill/action names
+
+The bounded prompt/payload context sections are assembled through `src/teambot/agent/reasoner_context.py`.
 
 #### 2.2 Reasoner Input/Output Contract
 
@@ -105,11 +108,13 @@ Reasoner payload includes:
 - `event_type`, `user_text`, `reaction`, `last_observation`
 - `recent_turns` bounded prior conversation turns selected by the session-memory char budget
 - `conversation_summary` rolling summary text when present
-- `skill_docs` bounded excerpts (if skill docs exist)
+- `runtime_working_dir` when present so the reasoner can reason about the active workspace root used by file/shell tools
+- `skill_catalog` metadata for discovered skill docs (`name`, `description`, `when_to_use`)
+- `active_skill_docs` bounded expanded skill docs loaded through `activate_skill`
 
 Reasoner tool schema includes `tool` actions only.
 Deterministic `event_handler` actions are excluded from model tool schema.
-Skill docs are guidance context only; they are not executable model-callable actions.
+Skill docs are guidance context only; they are not executable actions by themselves. The model can request skill activation through the low-risk `activate_skill` tool, which loads the chosen `SKILL.md` into runtime state for the next reasoner turn.
 
 Reasoner output is:
 - native `tool_calls` -> `selected_action` + `action_input`
@@ -134,14 +139,16 @@ Behavior:
 
 ### 3.1 Action Sources
 
-- `tool`: external-operation tools + optional MCP bridged tools
+- `tool`: `activate_skill`, external-operation tools, and optional MCP bridged tools
 - `event_handler`: deterministic handlers (`create_task`, `handle_reaction`)
 
 ### 3.2 Built-in Tool Profiles
 
-- `minimal`: no tools
-- `external_operation`: `read_file`, `write_file`, `edit_file`, `execute_shell_command`, `browser_use`, `get_current_time`
+- `minimal`: `activate_skill` only
+- `external_operation`: `activate_skill`, `read_file`, `write_file`, `edit_file`, `execute_shell_command`, `web_fetch`, `browser`, `get_current_time`
 - `full`: external_operation + `desktop_screenshot` + `send_file_to_user`
+- `web_fetch` is the narrow stateless URL retrieval tool.
+- `browser` uses an OpenClaw-style `action` envelope and is reserved for interactive page workflows.
 - File/shell tools resolve relative paths and command cwd from `runtime_working_dir`, which is initialized from `AGENT_HOME/work`.
 
 ### 3.3 High-Risk Tools (Policy-Gated)
@@ -156,10 +163,11 @@ Behavior:
 - Repo builtin skill docs live under `src/teambot/skills/packs`.
 - Shared skill docs live under `~/.teambot/skills`.
 - Agent-local skill docs live under `AGENT_HOME/skills`.
-- Optional dynamic skill plugins load from `AGENT_HOME/system/skills` unless explicitly overridden.
-- Runtime loads builtin + shared + agent-local skill docs into reasoner context by default.
+- Runtime loads builtin + shared + agent-local skill metadata into reasoner context by default.
+- Full skill bodies are loaded only after the model or caller selects a skill through `activate_skill` or explicit state activation.
 - Legacy `active_skills` remains compatibility-only for old slash commands.
 - Skill docs are not registered as executable actions.
+- Skill doc changes hot-load naturally because the reasoner skill catalog is read directly from disk during request-context assembly; `/skills sync|enable|disable` no longer trigger `reload_runtime()`.
 
 ### 4) Observe
 
@@ -318,7 +326,7 @@ Runtime call chain:
 
 1. Rolling-summary generation now depends on provider availability after the reply path. If no summary-capable model role is available, session compaction is skipped and the raw transcript window continues to grow until a model is configured.
 2. Reasoner output quality depends on provider/model behavior and prompt discipline.
-3. Browser automation is still not aligned to the OpenClaw-style `browser(action=...)` protocol.
+3. The runtime now exposes `browser(action=...)`, but the interactive browser backend is still an MVP placeholder rather than a full real-browser automation path.
 4. Streaming smoothness depends on provider chunk granularity.
 5. The terminal-native TUI deliberately favors scrollback stability over rich in-place layout control, so visual structure is simpler than a full-screen app.
 

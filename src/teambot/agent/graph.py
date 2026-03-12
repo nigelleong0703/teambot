@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import Callable
 
 from ..actions.registry import PluginHost
+from ..actions.event_handlers.builtin import build_registry as build_event_handler_registry
 from ..actions.tools.registry import ToolRegistry
 from ..contracts.contracts import ActionPluginRegistry
 from ..contracts.contracts import ModelRoleInvoker
 from ..domain.models import AgentState, RuntimeEvent
-from ..skills.registry import SkillRegistry
 from .execution import (
     action_output_update,
     build_act_node,
@@ -117,7 +117,6 @@ class AgentCoreRuntime:
 
 
 def build_graph(
-    registry: SkillRegistry,
     *,
     tool_registry: ToolRegistry | None = None,
     plugin_registry: ActionPluginRegistry | None = None,
@@ -132,7 +131,7 @@ def build_graph(
     action_registry = plugin_registry
     if action_registry is None:
         host = PluginHost()
-        host.bind_skill_registry(registry)
+        host.bind_event_handler_registry(build_event_handler_registry())
         host.bind_tool_registry(tool_registry)
         action_registry = host
     return AgentCoreRuntime(

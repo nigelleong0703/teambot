@@ -28,7 +28,7 @@ New code MUST follow the layout above.
 
 - `agent`
   - Owns the ReAct execution path.
-  - Expected contents: `runtime.py`, `service.py`, `graph.py`, `reason.py`, `execution.py`, `state.py`, `policy.py`.
+  - Expected contents: `runtime.py`, `service.py`, `graph.py`, `reason.py`, `reasoner_context.py`, `execution.py`, `state.py`, `policy.py`.
   - This is where you change how the agent runs.
 
 - `gateway`
@@ -44,7 +44,7 @@ New code MUST follow the layout above.
   - Owns executable runtime actions.
   - This is the execution surface for the system.
   - It contains:
-    - `tools/`: model-callable operations such as `read_file`, `execute_shell_command`, `get_current_time`
+    - `tools/`: model-callable operations such as `read_file`, `execute_shell_command`, `web_fetch`, `browser`, `get_current_time`
     - `event_handlers/`: deterministic handlers such as `/todo` and reaction processing
 
 - `providers`
@@ -59,7 +59,7 @@ New code MUST follow the layout above.
 - `skills`
   - Owns skill docs lifecycle and context assembly.
   - Skills are context for the reasoner.
-  - Skills are not executable actions unless a separate, explicit plugin system is designed and documented.
+  - Skills are activated through request context and the `activate_skill` tool, not through executable Python plugins.
 
 - `mcp`
   - Owns MCP configuration, client manager, and bridge code.
@@ -106,15 +106,16 @@ Disallowed:
 - Session-memory management, long-term memory loading, and compaction policy belong under `memory/`.
 - Ingress orchestration, request verification flow, and adapter dispatch belong under `gateway/`.
 - ReAct loop logic goes to `agent/`.
-- `agent/` should stay focused on `runtime.py`, `service.py`, `graph.py`, `reason.py`, `execution.py`, `state.py`, and `policy.py`.
+- `agent/` should stay focused on `runtime.py`, `service.py`, `graph.py`, `reason.py`, `reasoner_context.py`, `execution.py`, `state.py`, and `policy.py`.
 - Channel-specific request parsing and normalization belong under `channels/`.
+- Final reasoner request composition belongs under `agent/`; `memory/` and `skills/` should provide bounded context inputs rather than directly owning the final request envelope.
 - Executable model-callable operations belong under `actions/tools/`.
 - Deterministic event-driven actions belong under `actions/event_handlers/`.
 - Provider integrations belong under `providers/`.
 - Skills docs/context lifecycle belongs under `skills/`.
 - MCP runtime belongs under `mcp/`.
 - Protocols/contracts belong under `contracts/`.
-- Active skill docs should remain context-only unless an explicit separate plugin mechanism is introduced and documented.
+- Active skill docs should remain context-only.
 - Debug/utility runners should be under `app` (or a dedicated scripts area), not package root.
 - `app/cli.py` and `app/tui.py` own presentation only. Runtime trace/event generation stays in `agent/` and is surfaced via `RuntimeEvent` / `OutboundReply`.
 - Shared slash-command definitions belong in `app/slash_commands.py`. CLI and TUI should consume that shared dispatcher instead of maintaining separate command lists.

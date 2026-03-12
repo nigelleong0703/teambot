@@ -15,6 +15,7 @@ from ..runtime_paths import (
 class SkillDoc:
     name: str
     description: str
+    when_to_use: str
     source: str
     path: str
     content: str
@@ -108,14 +109,15 @@ def ensure_skills_initialized() -> None:
     return
 
 
-def _parse_frontmatter(content: str) -> tuple[str, str]:
+def _parse_frontmatter(content: str) -> tuple[str, str, str]:
     name = ""
     description = ""
+    when_to_use = ""
     if not content.startswith("---"):
-        return name, description
+        return name, description, when_to_use
     parts = content.split("---", 2)
     if len(parts) < 3:
-        return name, description
+        return name, description, when_to_use
     fm = parts[1]
     for line in fm.splitlines():
         line = line.strip()
@@ -123,7 +125,9 @@ def _parse_frontmatter(content: str) -> tuple[str, str]:
             name = line.split(":", 1)[1].strip().strip("'\"")
         elif line.startswith("description:"):
             description = line.split(":", 1)[1].strip().strip("'\"")
-    return name, description
+        elif line.startswith("when_to_use:"):
+            when_to_use = line.split(":", 1)[1].strip().strip("'\"")
+    return name, description, when_to_use
 
 
 def _read_skills_from_dir(directory: Path, source: str) -> list[SkillDoc]:
@@ -137,11 +141,12 @@ def _read_skills_from_dir(directory: Path, source: str) -> list[SkillDoc]:
         if not skill_md.exists():
             continue
         content = skill_md.read_text(encoding="utf-8")
-        name, description = _parse_frontmatter(content)
+        name, description, when_to_use = _parse_frontmatter(content)
         docs.append(
             SkillDoc(
                 name=name or skill_dir.name,
                 description=description,
+                when_to_use=when_to_use,
                 source=source,
                 path=str(skill_dir),
                 content=content,
@@ -166,6 +171,16 @@ class SkillService:
     @staticmethod
     def list_available_skill_docs() -> list[SkillDoc]:
         return _merge_skill_docs(include_legacy_active=True)
+
+    @staticmethod
+    def get_skill_doc(name: str) -> SkillDoc | None:
+        wanted = name.strip()
+        if not wanted:
+            return None
+        for doc in SkillService.list_available_skill_docs():
+            if doc.name == wanted:
+                return doc
+        return None
 
     @staticmethod
     def enable_skill(name: str, force: bool = False) -> bool:

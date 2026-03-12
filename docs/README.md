@@ -31,9 +31,12 @@ Current runtime terminology baseline:
 - `config/`: repo-tracked runtime JSON config such as provider model definitions and profile bindings
 - `agent`: the `agent/` package contains the ReAct loop, runtime owner, prompt assembly, and application service
 - Canonical target structure is `app/gateway/channels/agent/actions/memory/providers/skills/mcp/contracts/domain`
+- reasoner prompt/payload context composition is finalized in `agent/reasoner_context.py`; memory and skill layers remain separate providers
 - `tools`: executable model-callable operations
+- `web_fetch`: stateless URL retrieval tool for reading/extraction
+- `browser`: interactive browser action surface; prefer `web_fetch` when no interaction is required
 - `event_handlers`: deterministic runtime handlers (e.g. reaction and `/todo`)
-- `skills`: active skill packs loaded as context for the reasoner, not executable actions
+- `skills`: active skill packs loaded as context for the reasoner; the model can load one through the `activate_skill` tool, but skill docs are not executable actions
 - `memory`: session-scoped transcript/summary management, long-term memory loading, and reasoner context assembly
 - prior conversation turns and rolling summary state are stored in `domain/store`, then assembled into reasoner context by `memory/`
 - runtime conversation state is persisted under `AGENT_HOME/state/teambot.sqlite`

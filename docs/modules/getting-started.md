@@ -36,7 +36,7 @@ Important groups:
 - runtime store database: `AGENT_HOME/state/teambot.sqlite`
 - shared skill docs: `~/.teambot/skills`
 - agent-local skill docs: `AGENT_HOME/skills`
-- dynamic skill plugins: `AGENT_HOME/system/skills`
+- skill docs are loaded as reasoner context, and selected skills are activated through the `activate_skill` tool
 
 Runtime config now has two paths:
 - canonical: store provider/tools/policy/mcp defaults in `config/config.json`, then point `.env` at that file
@@ -140,7 +140,7 @@ Example `tools.json`:
 ## 5) Run Tests
 
 ```bash
-PYTHONPATH=src pytest -q
+uv run --with-requirements requirements-dev.txt pytest -q
 ```
 
 ## 6) Run TUI
