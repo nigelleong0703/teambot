@@ -4,7 +4,7 @@ import pytest
 
 from teambot.domain.models import OutboundReply, ReplyTarget
 from teambot.domain.store import MemoryStore
-from teambot.runtime_paths import get_agent_store_db_path
+from teambot.runtime_paths import get_agent_store_db_path, get_agent_todo_path
 
 
 @pytest.mark.asyncio
@@ -73,3 +73,9 @@ def test_memory_store_uses_agent_home_state_database_path() -> None:
 
     assert store._db_path == get_agent_store_db_path().resolve()
     assert store._db_path.name == "teambot.sqlite"
+
+
+def test_runtime_paths_place_todo_document_under_agent_work_dir(tmp_path) -> None:
+    todo_path = get_agent_todo_path(tmp_path)
+
+    assert todo_path == (tmp_path / "work" / "todo.md").resolve()

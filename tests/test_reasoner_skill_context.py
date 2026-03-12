@@ -142,7 +142,6 @@ def test_reasoner_tool_schema_excludes_skills_and_event_handlers() -> None:
     assert reasoner.last_tools is not None
     tool_names = {tool.name for tool in reasoner.last_tools}
     assert "activate_skill" in tool_names
-    assert "create_task" not in tool_names
     assert "handle_reaction" not in tool_names
 
 

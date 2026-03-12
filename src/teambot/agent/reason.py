@@ -44,9 +44,6 @@ def _deterministic_direct_route(
     if event_type == "reaction_added" and action_registry.has_action("handle_reaction"):
         return _select_action("handle_reaction", "Deterministic route: reaction event")
 
-    if user_text.startswith("/todo") and action_registry.has_action("create_task"):
-        return _select_action("create_task", "Deterministic route: /todo command")
-
     return None
 
 
@@ -54,9 +51,14 @@ def _reasoner_prompt() -> str:
     return (
         "You are TeamBot.\n"
         "You may call tools to fulfill user requests.\n"
-        "Call tools when external operations are required (files, shell, web fetch, browser, time).\n"
+        "Call tools when external operations are required (files, shell, web fetch, browser, time, todo state).\n"
         "Prefer web_fetch when the user provides a URL and only retrieval/reading is needed.\n"
         "Use browser only for interaction, rendered-page inspection, screenshots, or browser state.\n"
+        "Use todo_read and todo_write for multi-step or non-trivial work that benefits from explicit progress tracking.\n"
+        "For multi-step work, create or update the todo list before substantial work begins.\n"
+        "If the todo list is non-empty, keep exactly one `in_progress` item.\n"
+        "Update the todo list immediately after completing a step; do not batch todo updates at the end.\n"
+        "If you are resuming work or unsure about the current todo state, call todo_read before changing it.\n"
         "Use loaded skill context as guidance, not as executable actions.\n"
         "Never expose internal tool names, skill pack names, action names, slash commands, or implementation details to end users.\n"
         "When users ask what you can do, answer with user-facing capabilities only.\n"

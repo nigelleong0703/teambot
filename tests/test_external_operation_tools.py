@@ -90,12 +90,16 @@ def test_external_operation_tools_registration_and_risk_levels(
         "web_fetch",
         "browser",
         "get_current_time",
+        "todo_read",
+        "todo_write",
     }
     assert expected.issubset(set(manifests.keys()))
     assert "browser_use" not in manifests
     assert manifests["write_file"].risk_level == "high"
     assert manifests["edit_file"].risk_level == "high"
     assert manifests["execute_shell_command"].risk_level == "high"
+    assert manifests["todo_read"].risk_level == "low"
+    assert manifests["todo_write"].risk_level == "low"
 
 
 def test_optional_parity_tools_are_feature_flagged(monkeypatch) -> None:
@@ -141,6 +145,78 @@ def test_external_operation_tool_outputs_are_normalized_for_success_and_error(
     assert isinstance(error_result, dict)
     assert error_result.get("error") is True
     assert "message" in error_result
+
+
+def test_todo_tools_round_trip_document_backed_todo_markdown(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
+    registry = build_tool_registry(provider_manager=None)
+    state = {**_state(), "runtime_working_dir": str(tmp_path)}
+
+    write_result = registry.invoke(
+        "todo_write",
+        {
+            **state,
+            "action_input": {
+                "todos": [
+                    {
+                        "content": "Design document-backed todo storage",
+                        "active_form": "Designing document-backed todo storage",
+                        "status": "in_progress",
+                    },
+                    {
+                        "content": "Add todo repository",
+                        "active_form": "Adding todo repository",
+                        "status": "pending",
+                    },
+                ]
+            },
+        },
+    )
+
+    assert write_result.get("error") is not True
+    assert (tmp_path / "todo.md").exists()
+    assert "## 1. Design document-backed todo storage" in (tmp_path / "todo.md").read_text(encoding="utf-8")
+
+    read_result = registry.invoke("todo_read", state)
+
+    assert read_result.get("error") is not True
+    assert read_result.get("todos") == [
+        {
+            "content": "Design document-backed todo storage",
+            "active_form": "Designing document-backed todo storage",
+            "status": "in_progress",
+        },
+        {
+            "content": "Add todo repository",
+            "active_form": "Adding todo repository",
+            "status": "pending",
+        },
+    ]
+
+
+def test_todo_write_returns_error_for_invalid_progress_shape(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("TOOLS_PROFILE", "external_operation")
+    registry = build_tool_registry(provider_manager=None)
+
+    result = registry.invoke(
+        "todo_write",
+        {
+            **_state(),
+            "runtime_working_dir": str(tmp_path),
+            "action_input": {
+                "todos": [
+                    {
+                        "content": "Design document-backed todo storage",
+                        "active_form": "Designing document-backed todo storage",
+                        "status": "pending",
+                    }
+                ]
+            },
+        },
+    )
+
+    assert result.get("error") is True
+    assert "exactly one in_progress" in str(result.get("message", ""))
 
 
 def test_web_fetch_requires_explicit_url(monkeypatch) -> None:

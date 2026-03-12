@@ -44,8 +44,8 @@ New code MUST follow the layout above.
   - Owns executable runtime actions.
   - This is the execution surface for the system.
   - It contains:
-    - `tools/`: model-callable operations such as `read_file`, `execute_shell_command`, `web_fetch`, `browser`, `get_current_time`
-    - `event_handlers/`: deterministic handlers such as `/todo` and reaction processing
+    - `tools/`: model-callable operations such as `read_file`, `execute_shell_command`, `web_fetch`, `browser`, `get_current_time`, `todo_read`, `todo_write`
+    - `event_handlers/`: deterministic handlers such as reaction processing
 
 - `providers`
   - Owns model/provider integrations and provider selection.
@@ -111,6 +111,7 @@ Disallowed:
 - Final reasoner request composition belongs under `agent/`; `memory/` and `skills/` should provide bounded context inputs rather than directly owning the final request envelope.
 - Executable model-callable operations belong under `actions/tools/`.
 - Deterministic event-driven actions belong under `actions/event_handlers/`.
+- Document-backed todo models/codecs/repositories/services belong under a dedicated package (`src/teambot/todo/`), including canonical markdown rendering and progress-shape validation.
 - Provider integrations belong under `providers/`.
 - Skills docs/context lifecycle belongs under `skills/`.
 - MCP runtime belongs under `mcp/`.

@@ -38,7 +38,9 @@ Current runtime terminology baseline:
 - `tools`: executable model-callable operations
 - `web_fetch`: stateless URL retrieval tool for reading/extraction
 - `browser`: interactive browser action surface; prefer `web_fetch` when no interaction is required
-- `event_handlers`: deterministic runtime handlers (e.g. reaction and `/todo`)
+- `event_handlers`: deterministic runtime handlers (currently reaction-only)
+- `todo.md`: persisted todo list stored under `AGENT_HOME/work/todo.md` and managed via `todo_read` / `todo_write`
+- todo discipline: for multi-step work the reasoner is expected to maintain the todo list actively, and non-empty writes must contain exactly one `in_progress` item
 - `skills`: active skill packs loaded as context for the reasoner; the model can load one through the `activate_skill` tool, but skill docs are not executable actions
 - `memory`: session-scoped transcript/summary management, long-term memory loading, and reasoner context assembly
 - prior conversation turns and rolling summary state are stored in `domain/store`, then assembled into reasoner context by `memory/`

@@ -68,7 +68,7 @@ def test_provider_manager_role_binding_and_failover() -> None:
             return _FakeClient(endpoint=endpoint, fail=True)
         return _FakeClient(
             endpoint=endpoint,
-            response_text='{"selected_skill": "create_task"}',
+            response_text='{"selected_skill": "todo_write"}',
         )
 
     manager = ProviderManager(
@@ -83,7 +83,7 @@ def test_provider_manager_role_binding_and_failover() -> None:
 
     assert result.provider == "openai-compatible"
     assert result.model == "agent-fallback"
-    assert result.data["selected_skill"] == "create_task"
+    assert result.data["selected_skill"] == "todo_write"
 
 
 def test_provider_manager_structured_attempt_errors() -> None:
@@ -254,4 +254,3 @@ def test_provider_manager_tool_invocation() -> None:
     assert result.tool_calls
     assert result.tool_calls[0].name == "get_current_time"
     assert result.tool_calls[0].arguments["timezone"] == "Asia/Kuala_Lumpur"
-

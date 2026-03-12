@@ -3,6 +3,12 @@
 ## Reference Paths
 - /Users/nigelleong/Desktop/personal/CoPaw/src/copaw
 
+## Local Claude Code Reference Policy
+- Stable local Claude Code CLI path: `/Users/nigelleong/.local/bin/claude`.
+- Treat the local Claude Code installation as a reference implementation/source artifact when comparing behavior or studying prompts/runtime details.
+- Do not invoke the local `claude` binary as part of normal repository workflows unless the user explicitly asks for it.
+- Do not depend on versioned install paths under `/Users/nigelleong/.local/share/claude/versions/`; resolve the active version through the stable symlink above when needed.
+
 ## Environment Template Policy
 - Always keep `/Users/nigelleong/Desktop/personal/langgraph-teambot-mvp/.env.template` up to date.
 - Any new/renamed/removed environment variable in code or docs MUST be reflected in `.env.template` in the same change.

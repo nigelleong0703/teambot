@@ -23,6 +23,10 @@ def get_agent_work_dir(agent_home: str | Path | None = None) -> Path:
     return get_agent_home(agent_home) / "work"
 
 
+def get_agent_todo_path(agent_home: str | Path | None = None) -> Path:
+    return get_agent_work_dir(agent_home) / "todo.md"
+
+
 def get_agent_state_dir(agent_home: str | Path | None = None) -> Path:
     return get_agent_home(agent_home) / "state"
 

@@ -13,6 +13,8 @@ from .external_operation_tools import (
     get_current_time,
     read_file,
     send_file_to_user,
+    todo_read,
+    todo_write,
     web_fetch,
     write_file,
 )
@@ -148,9 +150,10 @@ def builtin_tool_definitions(
             ToolManifest(
                 name="browser",
                 description=(
-                    "Control a real browser for interactive page workflows. "
+                    "Placeholder browser surface for interactive page workflows. "
                     "Use this only when page interaction, rendered-page inspection, screenshots, "
-                    "or browser session state is required. Prefer web_fetch for simple URL content retrieval."
+                    "or browser session state is required. Prefer web_fetch for simple URL content retrieval. "
+                    "The interactive browser backend is not implemented yet in TeamBot MVP."
                 ),
                 input_schema=_schema(
                     properties={
@@ -193,6 +196,43 @@ def builtin_tool_definitions(
                 risk_level="low",
             ),
             get_current_time,
+        ),
+        "todo_read": (
+            ToolManifest(
+                name="todo_read",
+                description="Read the persisted todo list from todo.md in the runtime working directory.",
+                input_schema=_schema(properties={}),
+                risk_level="low",
+            ),
+            todo_read,
+        ),
+        "todo_write": (
+            ToolManifest(
+                name="todo_write",
+                description="Replace the persisted todo list in todo.md with the provided ordered items.",
+                input_schema=_schema(
+                    properties={
+                        "todos": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "content": {"type": "string"},
+                                    "active_form": {"type": "string"},
+                                    "status": {
+                                        "type": "string",
+                                        "enum": ["pending", "in_progress", "completed"],
+                                    },
+                                },
+                                "required": ["content", "active_form", "status"],
+                            },
+                        }
+                    },
+                    required=["todos"],
+                ),
+                risk_level="low",
+            ),
+            todo_write,
         ),
         "desktop_screenshot": (
             ToolManifest(

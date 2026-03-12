@@ -3,6 +3,7 @@
 import datetime as dt
 import os
 import subprocess
+from dataclasses import asdict
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -12,6 +13,7 @@ from zoneinfo import ZoneInfo
 from ...domain.models import AgentState
 from ...runtime_paths import get_agent_work_dir
 from ...skills.manager import SkillDoc, SkillService
+from ...todo import TodoItem, TodoService
 from .config import load_runtime_tool_limits
 
 _DEFAULT_EXEC_TIMEOUT_SECONDS = 20
@@ -85,12 +87,17 @@ def _existing_active_skill_docs(state: AgentState) -> list[dict[str, str]]:
             docs.append({str(key): str(value) for key, value in item.items()})
     return docs
 
+
 def _truncate_to_limit(text: str, limit: int) -> str:
     if limit <= 0:
         return text
     if len(text) <= limit:
         return text
     return text[:limit]
+
+
+def _serialize_todos(items: list[TodoItem]) -> list[dict[str, str]]:
+    return [asdict(item) for item in items]
 
 
 def activate_skill(state: AgentState) -> dict[str, object]:
@@ -388,6 +395,52 @@ def get_current_time(state: AgentState) -> dict[str, object]:
         "timezone": resolved_timezone,
         "iso_time": iso_timestamp,
         "unix_time": int(now.timestamp()),
+    }
+
+
+def todo_read(state: AgentState) -> dict[str, object]:
+    service = TodoService()
+    todo_list = service.read(_resolve_working_dir(state))
+    return {
+        "message": f"Loaded {len(todo_list.items)} todo item(s).",
+        "todos": _serialize_todos(todo_list.items),
+        "file_path": str(_resolve_working_dir(state) / "todo.md"),
+    }
+
+
+def todo_write(state: AgentState) -> dict[str, object]:
+    params = _coerce_input(state)
+    raw_todos = params.get("todos")
+    if not isinstance(raw_todos, list):
+        return {"message": "Error: `todos` must be an array.", "error": True}
+
+    try:
+        items = [
+            TodoItem(
+                content=str(item.get("content") or "").strip(),
+                active_form=str(item.get("active_form") or "").strip(),
+                status=str(item.get("status") or "").strip(),  # type: ignore[arg-type]
+            )
+            for item in raw_todos
+            if isinstance(item, dict)
+        ]
+    except Exception as exc:
+        return {"message": f"Error: Invalid todo item: {exc}", "error": True}
+
+    if len(items) != len(raw_todos):
+        return {"message": "Error: Each todo entry must be an object.", "error": True}
+
+    service = TodoService()
+    try:
+        result = service.write(_resolve_working_dir(state), items=items)
+    except ValueError as exc:
+        return {"message": f"Error: {exc}", "error": True}
+    return {
+        "message": f"Updated {len(items)} todo item(s).",
+        "old_todos": _serialize_todos(result["old_todos"]),
+        "new_todos": _serialize_todos(result["new_todos"]),
+        "todos": _serialize_todos(result["new_todos"]),
+        "file_path": str(_resolve_working_dir(state) / "todo.md"),
     }
 
 
