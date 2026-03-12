@@ -24,20 +24,29 @@
 ## 3. 单次请求执行链
 
 1. 入口接收事件（HTTP/CLI）
-2. `AgentService.process_event` 构建初始状态并调用 `TeamBotRuntime`
-3. runtime 进入 ReAct 循环
-4. `reason` 用固定优先级选 action 或结束
-5. `act` 执行动作（event_handler/tool + policy）
-6. `observe` 更新 step 与 trace，然后回到下一轮 `reason`
-7. `compose_reply` 产出最终 `reply_text`
-8. 写入 store（会话历史 + 幂等缓存）
+2. HTTP ingress 先经过 `gateway` + `channels/runtimes` 边界，由各平台 SDK/runtime 做 verify / parse，再转成 `ChannelEnvelope`
+3. `AgentService.process_event` 构建初始状态并调用 `TeamBotRuntime`
+4. runtime 进入 ReAct 循环
+5. `reason` 用固定优先级选 action 或结束
+6. `act` 执行动作（event_handler/tool + policy）
+7. `observe` 更新 step 与 trace，然后回到下一轮 `reason`
+8. `compose_reply` 产出最终 `reply_text`
+9. 写入 store（会话历史 + 幂等缓存）
 
 ## 4. 目录地图（按职责）
 
 目标结构名词定义以 `docs/code-structure.md` 为准。
 
 - `src/teambot/app/main.py`
-  FastAPI 入口（`/events/slack`, `/skills`, `/health`）
+  FastAPI 入口（`/events/slack`, `/events/{channel}`, `/gateway/{channel}/events`, `/skills`, `/health`）
+
+- `src/teambot/gateway/*`
+  HTTP ingress orchestration层；负责把各渠道 runtime 产出的 `ChannelEnvelope` 映射到现有 `InboundEvent` 并分发到 `AgentService`
+
+- `src/teambot/channels/*`
+  channel ingress 层；当前 phase-2 主路径已经切到 SDK-backed runtimes：
+  Slack 走 `slack-bolt`，Telegram 走 `python-telegram-bot`，WhatsApp 走 `pywa`，Feishu 走 `lark-oapi`，Discord 走 `discord-interactions.py`
+  legacy generic adapters 仍保留在 registry 里，只用于非 SDK 路径的兼容 fallback
 
 - `src/teambot/app/cli.py`
   交互式 CLI 调试入口（主路径消费 `AgentService.stream_event(...)`，按 `Step N · Thinking/Tool/Result/Final` 渲染 transcript，同时支持把 reasoning token 流进 `Thinking`，把 answer token 流进 `Final (live)`）
@@ -113,6 +122,9 @@
 
 - `src/teambot/domain/models.py`
   核心输入输出模型与 transcript event contract（`InboundEvent` / `OutboundReply` / `RuntimeEvent`）
+
+- `src/teambot/channels/models.py`
+  gateway/channel 中立事件 contract（`RawChannelEvent` / `ChannelEnvelope`）；这是各 SDK runtime 和 agent core 之间的缓冲层
 
 - `tests/*`
   行为与边界测试（包含核心分层约束）
@@ -205,6 +217,7 @@ LangChain 只在 provider client 层使用，不在 core runtime 层：
 - 高风险 action（`write_file` / `edit_file` / `execute_shell_command` / `exec_command`）必须经过 policy gate
 - 流式输出是否“细粒度”，取决于 provider chunk 粒度
 - `AgentService.stream_event(...)` 是给 TUI/CLI 这种实时 transcript 客户端的接口；`process_event(...)` 保持最终 reply 兼容接口
+- HTTP gateway 现在不会把各平台 payload 直接送进 `AgentService`；会先经过 `ChannelEnvelope -> InboundEvent` 的兼容映射
 
 ## 8. 常用调试入口
 

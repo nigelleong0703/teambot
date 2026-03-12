@@ -2,6 +2,7 @@
 
 TeamBot is an agent-first backend runtime for chat automation systems.
 It focuses on deterministic ReAct execution, tools/skills orchestration, and clean extensibility for future multi-channel and multi-agent flows.
+It now includes a channel-plugin gateway ingress skeleton for Slack, Telegram, Discord, WhatsApp, and Feishu HTTP message intake.
 
 ## Quick Start
 

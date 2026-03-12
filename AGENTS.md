@@ -59,6 +59,13 @@
 - No hidden behavior changes: avoid "bonus refactors" unless explicitly requested.
 - Keep diffs minimal and task-scoped; do not modify unrelated files.
 - Prefer deterministic code paths over implicit magic behavior.
+- Reuse before build: before implementing any new feature, integration, adapter, parser, or workflow, first check for an existing solution in this order:
+  - current repository code
+  - referenced local repos (for example `openclaw`, `CoPaw`, or other paths listed in this file)
+  - official SDKs / official documentation
+  - mature community-maintained libraries
+- Network verification is required for build-vs-buy decisions when the dependency landscape may have changed. Do not assume memory is current when selecting SDKs, adapters, or integration libraries.
+- Do not hand-roll adapters, webhook parsers, signature verification, or provider clients if a suitable existing implementation already exists. If a custom implementation is still chosen, explicitly document why the existing options were not used.
 - Any risky change (runtime flow, planner logic, provider routing, execution policy) must include:
   - What changed
   - Why it changed
