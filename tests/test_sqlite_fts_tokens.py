@@ -220,6 +220,94 @@ async def test_fts_stays_in_sync_after_turn_deleted(tmp_path) -> None:
     assert results == []
 
 
+# ---------------------------------------------------------------------------
+# Task 5: AgentLoop + TeamBotRuntime usage accumulation
+# ---------------------------------------------------------------------------
+from dataclasses import dataclass, field as dc_field
+from typing import Any
+
+from teambot.contracts.contracts import ModelToolCall, ModelToolInvocationResult
+from teambot.agent.loop import AgentLoop
+from teambot.agent.runtime import TeamBotRuntime
+from teambot.actions.tools.registry import ToolManifest, ToolRegistry
+
+
+@dataclass
+class _StubProviderManager:
+    """Minimal stub — returns pre-loaded responses in order."""
+    _responses: list[ModelToolInvocationResult] = dc_field(default_factory=list)
+
+    def invoke_profile_chat(self, *, profile, system_prompt, messages, tools=None, on_token=None):
+        return self._responses.pop(0)
+
+
+def test_agent_loop_returns_usage() -> None:
+    pm = _StubProviderManager(_responses=[
+        ModelToolInvocationResult(
+            text="final answer",
+            tool_calls=[],
+            provider="stub",
+            model="stub",
+            usage={"input_tokens": 42, "output_tokens": 17},
+        )
+    ])
+    loop = AgentLoop(tool_registry=ToolRegistry(), provider_manager=pm)
+
+    result = loop.run(
+        messages=[{"role": "user", "content": "hi"}],
+        system_prompt="test",
+    )
+
+    final_text, _messages, usage = result
+    assert final_text == "final answer"
+    assert usage["input_tokens"] == 42
+    assert usage["output_tokens"] == 17
+
+
+def test_agent_loop_accumulates_usage_across_steps() -> None:
+    tool_registry = ToolRegistry()
+    tool_registry.register(
+        ToolManifest(name="mytool", description="test tool"),
+        lambda _state: {"message": "tool output"},
+    )
+
+    pm = _StubProviderManager(_responses=[
+        ModelToolInvocationResult(
+            text="",
+            tool_calls=[ModelToolCall(name="mytool", arguments={}, call_id="c1")],
+            provider="stub",
+            model="stub",
+            usage={"input_tokens": 100, "output_tokens": 10},
+        ),
+        ModelToolInvocationResult(
+            text="done",
+            tool_calls=[],
+            provider="stub",
+            model="stub",
+            usage={"input_tokens": 50, "output_tokens": 25},
+        ),
+    ])
+
+    loop = AgentLoop(tool_registry=tool_registry, provider_manager=pm)
+    _, _, usage = loop.run(
+        messages=[{"role": "user", "content": "use the tool"}],
+        system_prompt="test",
+    )
+
+    assert usage["input_tokens"] == 150
+    assert usage["output_tokens"] == 35
+
+
+def test_agent_loop_none_provider_returns_empty_usage() -> None:
+    runtime = TeamBotRuntime.__new__(TeamBotRuntime)
+    runtime.loop = None
+
+    _text, _messages, usage = runtime.run_loop(
+        messages=[],
+        system_prompt="test",
+    )
+    assert usage == {}
+
 @pytest.mark.asyncio
 async def test_fts_stays_in_sync_after_history_trim(tmp_path) -> None:
     """Rows removed by the history-limit DELETE also disappear from FTS results."""

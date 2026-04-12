@@ -13,6 +13,7 @@ from ..providers.manager import (
 from ..domain.models import AgentState, RuntimeEvent
 from ..actions.registry import PluginHost
 from .graph import AgentCoreRuntime, build_graph
+from .loop import AgentLoop
 from .orchestrator import RuntimeOrchestrator
 from .policy import ExecutionPolicyGate
 
@@ -57,6 +58,7 @@ class TeamBotRuntime:
             tools_profile=tools_profile,
             strict_tools_config=strict_tools_config,
         )
+        self.loop: AgentLoop | None = None
         self.reload_runtime()
 
     def reload_runtime(self) -> None:
@@ -73,6 +75,35 @@ class TeamBotRuntime:
             plugin_registry=self.plugin_host,
             policy_gate=self.policy_gate,
             reasoner=self.provider_manager,
+        )
+        if self.provider_manager is not None:
+            self.loop = AgentLoop(
+                tool_registry=self.tool_registry,
+                provider_manager=self.provider_manager,
+            )
+        else:
+            self.loop = None
+
+    def run_loop(
+        self,
+        *,
+        messages: list[dict],
+        system_prompt: str,
+        conversation_key: str = "",
+        working_dir: str = "",
+        on_token: Callable[[str], None] | None = None,
+        on_event: Callable[[RuntimeEvent], None] | None = None,
+    ) -> tuple[str, list[dict], dict[str, int]]:
+        """Run the stateless tool-calling loop with a full messages list."""
+        if self.loop is None:
+            return "No provider configured.", messages, {}
+        return self.loop.run(
+            messages=messages,
+            system_prompt=system_prompt,
+            conversation_key=conversation_key,
+            working_dir=working_dir,
+            on_token=on_token,
+            on_event=on_event,
         )
 
     def invoke(
