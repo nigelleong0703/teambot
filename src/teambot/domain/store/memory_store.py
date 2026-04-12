@@ -219,6 +219,33 @@ class MemoryStore:
         async with self._lock:
             return self._list_history_locked(conversation_key)
 
+    async def search_turns(self, query: str, *, limit: int = 10) -> list[ConversationTurn]:
+        """Full-text search over all conversation turns using FTS5."""
+        if not query.strip():
+            return []
+        async with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT ct.seq, ct.role, ct.text, ct.input_tokens, ct.output_tokens
+                FROM turns_fts
+                JOIN conversation_turns ct ON ct.id = turns_fts.rowid
+                WHERE turns_fts MATCH ?
+                ORDER BY bm25(turns_fts)
+                LIMIT ?
+                """,
+                (query, limit),
+            ).fetchall()
+        return [
+            ConversationTurn(
+                seq=int(row["seq"]),
+                role=str(row["role"]),
+                text=str(row["text"]),
+                input_tokens=row["input_tokens"],
+                output_tokens=row["output_tokens"],
+            )
+            for row in rows
+        ]
+
     def _list_history_locked(self, conversation_key: str) -> list[ConversationTurn]:
         rows = self._connection.execute(
             """

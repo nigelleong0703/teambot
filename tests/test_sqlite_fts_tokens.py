@@ -145,3 +145,100 @@ async def test_append_turns_accepts_none_tokens(tmp_path) -> None:
     assistant_turn = next(t for t in turns if t.role == "assistant")
     assert assistant_turn.input_tokens is None
     assert assistant_turn.output_tokens is None
+
+
+# ---------------------------------------------------------------------------
+# Task 4: search_turns
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_search_turns_finds_matching_text(tmp_path) -> None:
+    store = MemoryStore(db_path=tmp_path / "search.db")
+    target_a = ReplyTarget(team_id="T1", channel_id="C1", thread_ts="3.1")
+    target_b = ReplyTarget(team_id="T1", channel_id="C1", thread_ts="3.2")
+    conv_a = await store.upsert_conversation(target_a)
+    conv_b = await store.upsert_conversation(target_b)
+
+    await store.append_turns(
+        conversation_key=conv_a.conversation_key,
+        user_text="tell me about python decorators",
+        assistant_text="Python decorators wrap functions to add behaviour.",
+    )
+    await store.append_turns(
+        conversation_key=conv_b.conversation_key,
+        user_text="what is a database index",
+        assistant_text="An index speeds up query lookups.",
+    )
+
+    results = await store.search_turns("python decorators")
+    texts = [r.text for r in results]
+    assert any("decorator" in t.lower() for t in texts)
+    assert not any("index speeds" in t for t in texts)
+
+
+@pytest.mark.asyncio
+async def test_search_turns_empty_query_returns_empty(tmp_path) -> None:
+    store = MemoryStore(db_path=tmp_path / "empty.db")
+    target = ReplyTarget(team_id="T1", channel_id="C1", thread_ts="4.1")
+    conv = await store.upsert_conversation(target)
+    await store.append_turns(
+        conversation_key=conv.conversation_key,
+        user_text="hello",
+        assistant_text="world",
+    )
+
+    assert await store.search_turns("") == []
+    assert await store.search_turns("   ") == []
+
+
+@pytest.mark.asyncio
+async def test_fts_stays_in_sync_after_turn_deleted(tmp_path) -> None:
+    """turns_fts_delete trigger fires on direct DELETE — turn vanishes from FTS."""
+    store = MemoryStore(db_path=tmp_path / "del_sync.db")
+    target = ReplyTarget(team_id="T1", channel_id="C1", thread_ts="5.1")
+    conv = await store.upsert_conversation(target)
+
+    await store.append_turns(
+        conversation_key=conv.conversation_key,
+        user_text="unique phrase xylophone kazoo",
+        assistant_text="I heard you say xylophone kazoo.",
+    )
+
+    # Confirm it is findable before deletion
+    results = await store.search_turns("xylophone kazoo")
+    assert len(results) > 0
+
+    # Directly delete the rows — this must fire the turns_fts_delete trigger
+    store._connection.execute(
+        "DELETE FROM conversation_turns WHERE conversation_key = ?",
+        (conv.conversation_key,),
+    )
+    store._connection.commit()
+
+    # FTS index must be clean after deletion
+    results = await store.search_turns("xylophone kazoo")
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_fts_stays_in_sync_after_history_trim(tmp_path) -> None:
+    """Rows removed by the history-limit DELETE also disappear from FTS results."""
+    store = MemoryStore(db_path=tmp_path / "trim.db", history_limit=2)
+    target = ReplyTarget(team_id="T1", channel_id="C1", thread_ts="5.2")
+    conv = await store.upsert_conversation(target)
+
+    # First turn — will be trimmed when history_limit=2 is hit
+    await store.append_turns(
+        conversation_key=conv.conversation_key,
+        user_text="unique phrase xylophone kazoo",
+        assistant_text="I heard you say xylophone kazoo.",
+    )
+    # Second turn — pushes first pair beyond the limit (2 rows kept)
+    await store.append_turns(
+        conversation_key=conv.conversation_key,
+        user_text="something else entirely",
+        assistant_text="Sure, something else.",
+    )
+
+    results = await store.search_turns("xylophone kazoo")
+    assert results == []
