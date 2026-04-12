@@ -244,23 +244,16 @@ async def test_agent_service_stream_event_maps_provider_tokens_to_runtime_deltas
     provider_stub = _ProviderStub()
     service.provider_manager = provider_stub  # type: ignore[assignment]
 
-    def _invoke_stub(state: AgentState, runtime_event_listener=None):
-        assert runtime_event_listener is not None
+    def _run_loop_stub(**kwargs: Any) -> tuple[str, list, dict]:
+        on_event = kwargs.get("on_event")
         if provider_stub._event_listener is not None:
             provider_stub._event_listener("model_reasoning_token", {"token": "Need"})
             provider_stub._event_listener("model_token", {"token": "Done"})
-        runtime_event_listener(RuntimeEvent(run_id=state["conversation_key"], step=1, event_type="thinking", text="Need"))
-        runtime_event_listener(RuntimeEvent(run_id=state["conversation_key"], step=1, event_type="run_completed", text="Done"))
-        return {
-            **state,
-            "reply_text": "Done",
-            "selected_action": "",
-            "selected_skill": "",
-            "reasoning_note": "Need",
-            "execution_trace": [],
-        }
+        if on_event is not None:
+            on_event(RuntimeEvent(run_id=kwargs.get("conversation_key", ""), step=1, event_type="thinking", text="Need"))
+        return ("Done", [], {"input_tokens": 10, "output_tokens": 5})
 
-    service._agent.invoke = _invoke_stub  # type: ignore[method-assign]
+    service._agent.run_loop = _run_loop_stub  # type: ignore[method-assign]
 
     def _previous_listener(name: str, payload: dict[str, Any]) -> None:
         provider_events.append((name, payload))
@@ -301,24 +294,13 @@ async def test_agent_service_stream_event_emits_memory_compacted_before_completi
 
     service.session_memory.append_turns = _append_turns  # type: ignore[method-assign]
 
-    def _invoke_stub(state: AgentState, runtime_event_listener=None):
-        assert runtime_event_listener is not None
-        runtime_event_listener(
-            RuntimeEvent(run_id=state["conversation_key"], step=1, event_type="thinking", text="Need")
-        )
-        runtime_event_listener(
-            RuntimeEvent(run_id=state["conversation_key"], step=1, event_type="run_completed", text="Done")
-        )
-        return {
-            **state,
-            "reply_text": "Done",
-            "selected_action": "",
-            "selected_skill": "",
-            "reasoning_note": "Need",
-            "execution_trace": [],
-        }
+    def _run_loop_stub(**kwargs: Any) -> tuple[str, list, dict]:
+        on_event = kwargs.get("on_event")
+        if on_event is not None:
+            on_event(RuntimeEvent(run_id=kwargs.get("conversation_key", ""), step=1, event_type="thinking", text="Need"))
+        return ("Done", [], {"input_tokens": 10, "output_tokens": 5})
 
-    service._agent.invoke = _invoke_stub  # type: ignore[method-assign]
+    service._agent.run_loop = _run_loop_stub  # type: ignore[method-assign]
 
     events = [item async for item in service.stream_event(event)]
 

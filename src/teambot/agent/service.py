@@ -196,7 +196,6 @@ class AgentService:
         sentinel = object()
         loop = asyncio.get_running_loop()
         current_step = {"value": 1}
-        pending_completion = {"event": None}
 
         previous_listener = None
         if self.provider_manager is not None:
@@ -205,9 +204,6 @@ class AgentService:
         def _emit(runtime_event: RuntimeEvent) -> None:
             if runtime_event.step > 0:
                 current_step["value"] = runtime_event.step
-            if runtime_event.event_type == "run_completed":
-                pending_completion["event"] = runtime_event
-                return
             loop.call_soon_threadsafe(queue.put_nowait, runtime_event)
 
         def _provider_event_listener(name: str, payload: dict[str, Any]) -> None:
@@ -241,37 +237,55 @@ class AgentService:
         if self.provider_manager is not None:
             self.provider_manager.set_event_listener(_provider_event_listener)
 
-        async def _run_and_store() -> OutboundReply:
+        messages = list(state["recent_turns"])
+        user_text = event.text or f"reaction:{event.reaction}"
+        messages.append({"role": "user", "content": user_text})
+        system_prompt = build_system_prompt_from_working_dir(state.get("runtime_working_dir"))
+        if state.get("memory_system_prompt_suffix"):
+            system_prompt = f"{system_prompt}\n\n{state['memory_system_prompt_suffix']}"
+        conversation_key = str(state["conversation_key"])
+
+        async def _run_and_store() -> None:
             try:
-                result = await asyncio.to_thread(
-                    self._agent.invoke,
-                    state,
-                    _emit,
+                final_text, _, usage = await asyncio.to_thread(
+                    self._agent.run_loop,
+                    messages=messages,
+                    system_prompt=system_prompt,
+                    conversation_key=conversation_key,
+                    on_event=_emit,
                 )
-                reply = self._build_reply(
-                    event=event,
-                    conversation_key=str(state["conversation_key"]),
+                reply = OutboundReply(
+                    event_id=event.event_id,
+                    conversation_key=conversation_key,
                     reply_target=reply_target,
-                    result=result,
+                    text=final_text,
+                    skill_name="",
+                    reasoning_note="",
                 )
-                user_text = event.text or f"reaction:{event.reaction}"
                 compaction = await self.session_memory.append_turns(
-                    conversation_key=str(state["conversation_key"]),
+                    conversation_key=conversation_key,
                     user_text=user_text,
-                    assistant_text=reply.text,
+                    assistant_text=final_text,
+                    input_tokens=usage.get("input_tokens"),
+                    output_tokens=usage.get("output_tokens"),
                 )
                 compaction_event = self._compaction_runtime_event(
-                    conversation_key=str(state["conversation_key"]),
+                    conversation_key=conversation_key,
                     current_step=current_step["value"],
                     result=compaction,
                 )
                 if compaction_event is not None:
-                    _emit(compaction_event)
-                completed_event = pending_completion["event"]
-                if isinstance(completed_event, RuntimeEvent):
-                    loop.call_soon_threadsafe(queue.put_nowait, completed_event)
+                    loop.call_soon_threadsafe(queue.put_nowait, compaction_event)
+                loop.call_soon_threadsafe(
+                    queue.put_nowait,
+                    RuntimeEvent(
+                        run_id=conversation_key,
+                        step=0,
+                        event_type="run_completed",
+                        text=final_text,
+                    ),
+                )
                 await self.store.save_processed_event(event.event_id, reply)
-                return reply
             finally:
                 if self.provider_manager is not None:
                     self.provider_manager.set_event_listener(previous_listener)
