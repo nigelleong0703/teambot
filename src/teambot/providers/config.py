@@ -25,6 +25,20 @@ from .registry import (
 )
 
 
+_VALID_THINKING_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high", "xhigh"})
+
+
+def _parse_thinking_effort(value: str | None, context: str) -> str | None:
+    if not value:
+        return None
+    if value not in _VALID_THINKING_EFFORTS:
+        raise ProviderConfigError(
+            f"{context}: thinking_effort '{value}' is not valid. "
+            f"Valid values: {', '.join(sorted(_VALID_THINKING_EFFORTS))}"
+        )
+    return value
+
+
 def load_provider_settings_from_env() -> ProviderSettings:
     bindings: dict[str, ProviderProfileBinding] = {}
 
@@ -354,6 +368,7 @@ def _endpoint_from_config_dict(
     temperature = float(temperature_raw) if isinstance(temperature_raw, (int, float)) else 0.0
     api_key = _resolve_definition_api_key(raw=raw, provider=provider)
     base_url_raw = raw.get("base_url")
+    thinking_effort = _parse_thinking_effort(raw.get("thinking_effort") or None, env_name)
     return ProviderEndpoint(
         provider=provider,
         model=model,
@@ -365,6 +380,7 @@ def _endpoint_from_config_dict(
         ),
         timeout_seconds=timeout_seconds,
         temperature=temperature,
+        thinking_effort=thinking_effort,
     )
 
 
@@ -412,12 +428,17 @@ def _build_primary_endpoint(env_prefix: str) -> ProviderEndpoint | None:
     )
     timeout_raw = _read_env(f"{env_prefix}_TIMEOUT_SECONDS") or "20"
     timeout_seconds = int(timeout_raw) if timeout_raw.isdigit() else 20
+    thinking_effort = _parse_thinking_effort(
+        _read_env(f"{env_prefix}_THINKING_EFFORT") or None,
+        f"{env_prefix}_THINKING_EFFORT",
+    )
     return ProviderEndpoint(
         provider=provider,
         model=model,
         api_key=api_key,
         base_url=base_url,
         timeout_seconds=timeout_seconds,
+        thinking_effort=thinking_effort,
     )
 
 
@@ -466,6 +487,7 @@ def _endpoint_from_dict(raw: dict[str, Any], env_name: str) -> ProviderEndpoint:
     )
     api_key_raw = raw.get("api_key")
     base_url_raw = raw.get("base_url")
+    thinking_effort = _parse_thinking_effort(raw.get("thinking_effort") or None, env_name)
     return ProviderEndpoint(
         provider=provider,
         model=model,
@@ -473,6 +495,7 @@ def _endpoint_from_dict(raw: dict[str, Any], env_name: str) -> ProviderEndpoint:
         base_url=str(base_url_raw).strip() if isinstance(base_url_raw, str) else None,
         timeout_seconds=timeout_seconds,
         temperature=temperature,
+        thinking_effort=thinking_effort,
     )
 
 

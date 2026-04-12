@@ -14,12 +14,14 @@ class ProviderEndpoint:
     base_url: str | None = None
     timeout_seconds: int = 20
     temperature: float = 0.0
+    thinking_effort: str | None = None
 
     @property
     def key(self) -> str:
         return (
             f"{self.provider.lower()}::{self.model}::"
             f"{self.base_url or ''}::{self.timeout_seconds}::{self.temperature}"
+            f"::{self.thinking_effort or ''}"
         )
 
 
