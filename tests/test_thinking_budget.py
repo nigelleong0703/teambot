@@ -248,6 +248,45 @@ def test_thinking_effort_injects_thinking_block_invoke_anthropic() -> None:
 
 
 # -------------------------------------------------------------------
+# NativeProviderClient — injection: _invoke_anthropic (single-turn) streaming
+# -------------------------------------------------------------------
+
+def test_thinking_effort_injects_thinking_block_invoke_anthropic_streaming() -> None:
+    """_invoke_anthropic streaming path also receives thinking block."""
+    client = _make_client(thinking_effort="xhigh")
+    captured: dict = {}
+
+    mock_stream = MagicMock()
+    mock_stream.__enter__ = lambda s: s
+    mock_stream.__exit__ = MagicMock(return_value=False)
+    mock_stream.__iter__ = lambda s: iter([])
+    mock_stream.get_final_message.return_value = MagicMock(
+        content=[], usage=None, stop_reason="end_turn"
+    )
+
+    def fake_stream(**kwargs):
+        captured.update(kwargs)
+        return mock_stream
+
+    mock_anthropic = MagicMock()
+    mock_anthropic.messages.stream.side_effect = fake_stream
+
+    tokens: list[str] = []
+    with patch("anthropic.Anthropic", return_value=mock_anthropic):
+        client._invoke_anthropic(
+            system_prompt="sys",
+            body="hello",
+            tools=None,
+            on_token=tokens.append,
+            on_reasoning=None,
+        )
+
+    assert captured["thinking"] == {"type": "enabled", "budget_tokens": 32768}
+    assert captured["temperature"] == 1
+    assert captured["max_tokens"] == _THINKING_MAX_TOKENS_MAP["xhigh"]
+
+
+# -------------------------------------------------------------------
 # NativeProviderClient — injection: streaming path
 # -------------------------------------------------------------------
 

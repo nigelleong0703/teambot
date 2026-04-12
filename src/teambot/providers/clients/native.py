@@ -306,7 +306,12 @@ class NativeProviderClient:
             params["tool_choice"] = {"type": "auto"}
 
         if self.endpoint.thinking_effort:
-            budget = _THINKING_BUDGET_MAP[self.endpoint.thinking_effort]
+            budget = _THINKING_BUDGET_MAP.get(self.endpoint.thinking_effort)
+            if budget is None:
+                raise ProviderInvocationError(
+                    f"Unknown thinking_effort '{self.endpoint.thinking_effort}'. "
+                    f"Valid values: {', '.join(sorted(_THINKING_BUDGET_MAP))}"
+                )
             params["thinking"] = {"type": "enabled", "budget_tokens": budget}
             params["temperature"] = 1
             params["max_tokens"] = _THINKING_MAX_TOKENS_MAP[self.endpoint.thinking_effort]
@@ -343,7 +348,12 @@ class NativeProviderClient:
             params["tool_choice"] = {"type": "auto"}
 
         if self.endpoint.thinking_effort:
-            budget = _THINKING_BUDGET_MAP[self.endpoint.thinking_effort]
+            budget = _THINKING_BUDGET_MAP.get(self.endpoint.thinking_effort)
+            if budget is None:
+                raise ProviderInvocationError(
+                    f"Unknown thinking_effort '{self.endpoint.thinking_effort}'. "
+                    f"Valid values: {', '.join(sorted(_THINKING_BUDGET_MAP))}"
+                )
             params["thinking"] = {"type": "enabled", "budget_tokens": budget}
             params["temperature"] = 1
             params["max_tokens"] = _THINKING_MAX_TOKENS_MAP[self.endpoint.thinking_effort]
