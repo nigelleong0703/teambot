@@ -30,6 +30,7 @@ class MemoryStore:
         self._connection.execute("PRAGMA journal_mode = WAL")
         self._connection.execute("PRAGMA synchronous = NORMAL")
         self._init_schema()
+        self._migrate_schema()   # ← add this line
         self._lock = asyncio.Lock()
 
     async def get_processed_event(self, event_id: str) -> OutboundReply | None:
@@ -229,6 +230,52 @@ class MemoryStore:
             )
             for row in rows
         ]
+
+    def _migrate_schema(self) -> None:
+        """Additive migrations — safe to run on every startup."""
+        # Add token columns if absent
+        cols = {row[1] for row in self._connection.execute("PRAGMA table_info(conversation_turns)")}
+        if "input_tokens" not in cols:
+            self._connection.execute(
+                "ALTER TABLE conversation_turns ADD COLUMN input_tokens INTEGER"
+            )
+        if "output_tokens" not in cols:
+            self._connection.execute(
+                "ALTER TABLE conversation_turns ADD COLUMN output_tokens INTEGER"
+            )
+        self._connection.commit()
+
+        # Create FTS table + sync triggers if absent
+        tables = {
+            row[0]
+            for row in self._connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        if "turns_fts" not in tables:
+            try:
+                self._connection.executescript("""
+                    CREATE VIRTUAL TABLE turns_fts USING fts5(
+                        text,
+                        content='conversation_turns',
+                        content_rowid='id'
+                    );
+
+                    CREATE TRIGGER turns_fts_insert AFTER INSERT ON conversation_turns BEGIN
+                        INSERT INTO turns_fts(rowid, text) VALUES (new.id, new.text);
+                    END;
+
+                    CREATE TRIGGER turns_fts_delete AFTER DELETE ON conversation_turns BEGIN
+                        INSERT INTO turns_fts(turns_fts, rowid, text) VALUES ('delete', old.id, old.text);
+                    END;
+
+                    CREATE TRIGGER turns_fts_update AFTER UPDATE ON conversation_turns BEGIN
+                        INSERT INTO turns_fts(turns_fts, rowid, text) VALUES ('delete', old.id, old.text);
+                        INSERT INTO turns_fts(rowid, text) VALUES (new.id, new.text);
+                    END;
+                """)
+            except Exception as exc:
+                raise RuntimeError("FTS5 not available in this SQLite build") from exc
 
     def _init_schema(self) -> None:
         self._connection.executescript(
