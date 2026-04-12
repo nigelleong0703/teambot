@@ -35,6 +35,8 @@ class ConversationTurn(BaseModel):
     role: Literal["user", "assistant"]
     text: str
     seq: int | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 class ConversationRecord(BaseModel):
