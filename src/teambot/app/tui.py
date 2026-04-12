@@ -31,17 +31,17 @@ _ActivityKind = Literal["tool", "result"]
 _RESET = "\033[0m"
 _CLEAR_LINE = "\r\033[2K"
 _ANSI_STYLES = {
-    "accent": "\033[38;5;180m",
-    "border": "\033[38;5;240m",
-    "dim": "\033[38;5;244m",
-    "final": "\033[38;5;230m",
-    "thinking_head": "\033[1;38;5;229m",
-    "prompt": "\033[38;5;215m",
-    "thinking": "\033[38;5;221m",
-    "tool": "\033[38;5;111m",
-    "result": "\033[38;5;246m",
-    "system": "\033[38;5;150m",
-    "error": "\033[38;5;203m",
+    "accent":        "\033[38;5;75m",   # #5FD7FF — bright blue
+    "border":        "\033[38;5;60m",   # #5F5F87 — muted blue-grey
+    "dim":           "\033[38;5;244m",  # grey (unchanged)
+    "final":         "\033[38;5;117m",  # #87D7FF — light blue
+    "thinking_head": "\033[1;38;5;75m", # bold bright blue
+    "prompt":        "\033[38;5;81m",   # #5FD7FF variant
+    "thinking":      "\033[38;5;69m",   # #5F87FF — mid blue
+    "tool":          "\033[38;5;75m",   # bright blue
+    "result":        "\033[38;5;246m",  # grey (unchanged)
+    "system":        "\033[38;5;110m",  # #87AFD7 — pale blue
+    "error":         "\033[38;5;203m",  # red (unchanged)
 }
 
 
