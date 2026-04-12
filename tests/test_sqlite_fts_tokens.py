@@ -98,3 +98,50 @@ def test_migration_is_idempotent(tmp_path) -> None:
     db_file = tmp_path / "idem.db"
     MemoryStore(db_path=db_file)
     MemoryStore(db_path=db_file)  # second open must not crash
+
+
+# ---------------------------------------------------------------------------
+# Task 3: append_turns token storage + _list_history_locked reads them back
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_append_turns_stores_token_counts(tmp_path) -> None:
+    store = MemoryStore(db_path=tmp_path / "tok.db")
+    target = ReplyTarget(team_id="T1", channel_id="C1", thread_ts="1.1")
+    conversation = await store.upsert_conversation(target)
+
+    await store.append_turns(
+        conversation_key=conversation.conversation_key,
+        user_text="hello",
+        assistant_text="world",
+        input_tokens=42,
+        output_tokens=17,
+    )
+
+    turns = await store.list_conversation_turns(conversation.conversation_key)
+    user_turn = next(t for t in turns if t.role == "user")
+    assistant_turn = next(t for t in turns if t.role == "assistant")
+
+    assert user_turn.input_tokens is None
+    assert user_turn.output_tokens is None
+    assert assistant_turn.input_tokens == 42
+    assert assistant_turn.output_tokens == 17
+
+
+@pytest.mark.asyncio
+async def test_append_turns_accepts_none_tokens(tmp_path) -> None:
+    """append_turns without token kwargs stores NULL — backward-compatible."""
+    store = MemoryStore(db_path=tmp_path / "null_tok.db")
+    target = ReplyTarget(team_id="T1", channel_id="C1", thread_ts="2.1")
+    conversation = await store.upsert_conversation(target)
+
+    await store.append_turns(
+        conversation_key=conversation.conversation_key,
+        user_text="hi",
+        assistant_text="there",
+    )
+
+    turns = await store.list_conversation_turns(conversation.conversation_key)
+    assistant_turn = next(t for t in turns if t.role == "assistant")
+    assert assistant_turn.input_tokens is None
+    assert assistant_turn.output_tokens is None

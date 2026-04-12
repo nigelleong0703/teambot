@@ -99,6 +99,9 @@ class MemoryStore:
         conversation_key: str,
         user_text: str,
         assistant_text: str,
+        *,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
     ) -> None:
         async with self._lock:
             row = self._connection.execute(
@@ -106,15 +109,19 @@ class MemoryStore:
                 (conversation_key,),
             ).fetchone()
             next_seq = int(row["max_seq"]) + 1 if row is not None else 1
-            self._connection.executemany(
+            # user turn — no tokens
+            self._connection.execute(
+                "INSERT INTO conversation_turns (conversation_key, seq, role, text) VALUES (?, ?, ?, ?)",
+                (conversation_key, next_seq, "user", user_text),
+            )
+            # assistant turn — with optional tokens
+            self._connection.execute(
                 """
-                INSERT INTO conversation_turns (conversation_key, seq, role, text)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO conversation_turns
+                    (conversation_key, seq, role, text, input_tokens, output_tokens)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                [
-                    (conversation_key, next_seq, "user", user_text),
-                    (conversation_key, next_seq + 1, "assistant", assistant_text),
-                ],
+                (conversation_key, next_seq + 1, "assistant", assistant_text, input_tokens, output_tokens),
             )
             self._connection.execute(
                 """
@@ -215,7 +222,7 @@ class MemoryStore:
     def _list_history_locked(self, conversation_key: str) -> list[ConversationTurn]:
         rows = self._connection.execute(
             """
-            SELECT seq, role, text
+            SELECT seq, role, text, input_tokens, output_tokens
             FROM conversation_turns
             WHERE conversation_key = ?
             ORDER BY seq ASC
@@ -227,6 +234,8 @@ class MemoryStore:
                 seq=int(row["seq"]),
                 role=str(row["role"]),
                 text=str(row["text"]),
+                input_tokens=row["input_tokens"],
+                output_tokens=row["output_tokens"],
             )
             for row in rows
         ]
