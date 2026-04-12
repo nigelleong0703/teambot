@@ -147,7 +147,7 @@ class TranscriptRenderer:
         value_width = max(18, column_width - 4)
         left = [
             "",
-            "TeamBot",
+            "Helm",
             "",
             "Model",
             self._truncate(self.model_name, limit=value_width),
@@ -171,7 +171,7 @@ class TranscriptRenderer:
             "/exit",
         ]
         return self._render_box(
-            title="TeamBot Workbench",
+            title="Helm",
             left_lines=left,
             right_lines=right,
             inner_width=inner_width,
@@ -180,7 +180,7 @@ class TranscriptRenderer:
     def _render_compact_welcome(self, inner_width: int) -> str:
         value_width = max(12, inner_width - 18)
         lines = [
-            self._center("TeamBot", inner_width),
+            self._center("Helm", inner_width),
             "",
             f"Model: {self._truncate(self.model_name, limit=value_width)}",
             f"Skills: {self.loaded_skills_count} loaded",
@@ -194,7 +194,7 @@ class TranscriptRenderer:
             "/exit",
         ]
         return self._render_single_column_box(
-            title="TeamBot Workbench",
+            title="Helm",
             lines=lines,
             inner_width=inner_width,
         )
@@ -552,7 +552,7 @@ class TeamBotTuiApp:
         for char in ("╭", "╮", "╰", "╯", "─", "│"):
             colored = colored.replace(char, self._style(char, "border"))
         replacements = {
-            "TeamBot": self._style("TeamBot", "final"),
+            "Helm": self._style("Helm", "final"),  # also styles title occurrence — intentional
             "Runtime status": self._style("Runtime status", "accent"),
             "Model": self._style("Model", "accent"),
             "Agent work dir": self._style("Agent work dir", "accent"),
@@ -634,7 +634,7 @@ def parse_args() -> argparse.Namespace:
         f"- {TOOL_PROFILE_EXTERNAL_OPERATION}: {profile_descriptions[TOOL_PROFILE_EXTERNAL_OPERATION]}\n"
         f"- {TOOL_PROFILE_FULL}: {profile_descriptions[TOOL_PROFILE_FULL]}"
     )
-    parser = argparse.ArgumentParser(description="TeamBot terminal workbench")
+    parser = argparse.ArgumentParser(description="Helm — Harness Engineering Agent Framework")
     parser.add_argument("--team-id", default="T1")
     parser.add_argument("--channel-id", default="C1")
     parser.add_argument("--thread-ts", default=None)
