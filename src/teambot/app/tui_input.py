@@ -33,7 +33,7 @@ def build_tui_input_reader(*, use_color: bool) -> TuiInputReader:
     if modules is None:
         return PlainInputReader()
 
-    PromptSession, ANSI, InMemoryHistory, KeyBindings = modules
+    PromptSession, ANSI, FileHistory, KeyBindings = modules
     bindings = KeyBindings()
 
     @bindings.add("enter")
@@ -45,11 +45,13 @@ def build_tui_input_reader(*, use_color: bool) -> TuiInputReader:
     def _newline(event) -> None:
         event.current_buffer.insert_text("\n")
 
+    from pathlib import Path
+    _history_path = Path.home() / ".helm_history"
     session = PromptSession(
         multiline=True,
         key_bindings=bindings,
         prompt_continuation=_prompt_continuation,
-        history=InMemoryHistory(),
+        history=FileHistory(str(_history_path)),
         reserve_space_for_menu=0,
     )
     ansi_factory = ANSI if use_color else None
@@ -60,11 +62,11 @@ def _load_prompt_toolkit_modules():
     try:
         from prompt_toolkit import PromptSession
         from prompt_toolkit.formatted_text import ANSI
-        from prompt_toolkit.history import InMemoryHistory
+        from prompt_toolkit.history import FileHistory
         from prompt_toolkit.key_binding import KeyBindings
     except ImportError:
         return None
-    return PromptSession, ANSI, InMemoryHistory, KeyBindings
+    return PromptSession, ANSI, FileHistory, KeyBindings
 
 
 def _prompt_continuation(width: int, line_number: int, is_soft_wrap: bool) -> str:

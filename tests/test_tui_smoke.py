@@ -25,6 +25,21 @@ def test_welcome_shows_helm_branding():
     assert "TeamBot" not in welcome
 
 
+def test_build_tui_input_reader_uses_file_history(tmp_path, monkeypatch):
+    """PromptToolkitInputReader should use FileHistory, not InMemoryHistory."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    from teambot.app.tui_input import build_tui_input_reader
+
+    reader = build_tui_input_reader(use_color=False)
+    if reader.__class__.__name__ == "PlainInputReader":
+        pytest.skip("prompt_toolkit not installed")
+
+    history = reader.session.history
+    assert "InMemoryHistory" not in type(history).__name__, \
+        "Expected FileHistory, got InMemoryHistory"
+    assert hasattr(history, "filename"), "Expected FileHistory with .filename attribute"
+
+
 def test_compact_welcome_shows_helm_branding():
     """terminal_width=60 → inner_width=56 < 104 → compact path."""
     from teambot.app.tui import TranscriptRenderer
