@@ -13,8 +13,19 @@ from ..registry import (
 
 _ANTHROPIC_DEFAULT_MAX_TOKENS = 8192
 
-_THINKING_BUDGET_MAP: dict[str, int] = {}
-_THINKING_MAX_TOKENS_MAP: dict[str, int] = {}
+_THINKING_BUDGET_MAP: dict[str, int] = {
+    "low":    4096,
+    "medium": 8192,
+    "high":   16384,
+    "xhigh":  32768,
+}
+
+_THINKING_MAX_TOKENS_MAP: dict[str, int] = {
+    "low":    8192,
+    "medium": 12288,
+    "high":   20480,
+    "xhigh":  36864,
+}
 
 
 class NativeProviderClient:
@@ -294,6 +305,12 @@ class NativeProviderClient:
             params["tools"] = [_anthropic_tool_spec(t) for t in tools]
             params["tool_choice"] = {"type": "auto"}
 
+        if self.endpoint.thinking_effort:
+            budget = _THINKING_BUDGET_MAP[self.endpoint.thinking_effort]
+            params["thinking"] = {"type": "enabled", "budget_tokens": budget}
+            params["temperature"] = 1
+            params["max_tokens"] = _THINKING_MAX_TOKENS_MAP[self.endpoint.thinking_effort]
+
         if on_token is not None or on_reasoning is not None:
             return self._invoke_anthropic_stream(client, params, on_token, on_reasoning)
 
@@ -324,6 +341,12 @@ class NativeProviderClient:
         if tools:
             params["tools"] = [_anthropic_tool_spec(t) for t in tools]
             params["tool_choice"] = {"type": "auto"}
+
+        if self.endpoint.thinking_effort:
+            budget = _THINKING_BUDGET_MAP[self.endpoint.thinking_effort]
+            params["thinking"] = {"type": "enabled", "budget_tokens": budget}
+            params["temperature"] = 1
+            params["max_tokens"] = _THINKING_MAX_TOKENS_MAP[self.endpoint.thinking_effort]
 
         if on_token is not None or on_reasoning is not None:
             return self._invoke_anthropic_stream(client, params, on_token, on_reasoning)
