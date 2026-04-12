@@ -5,19 +5,18 @@ TOOL_PROFILE_EXTERNAL_OPERATION = "external_operation"
 TOOL_PROFILE_FULL = "full"
 
 PROFILE_DESCRIPTIONS: dict[str, str] = {
-    TOOL_PROFILE_MINIMAL: "activate_skill only (model can still answer directly)",
+    TOOL_PROFILE_MINIMAL: "no extra tools (activate_skill always injected by runtime; model can still answer directly)",
     TOOL_PROFILE_EXTERNAL_OPERATION: (
-        "activate_skill + read/write/edit file + execute shell + web fetch + browser + current time + todo read/write"
+        "read/write/edit file + execute shell + web fetch + browser + current time + todo read/write"
     ),
     TOOL_PROFILE_FULL: (
-        "activate_skill + external_operation + todo read/write + desktop_screenshot + send_file_to_user"
+        "external_operation + todo read/write + desktop_screenshot + send_file_to_user"
     ),
 }
 
 _PROFILE_TOOLS: dict[str, set[str]] = {
-    TOOL_PROFILE_MINIMAL: {"activate_skill"},
+    TOOL_PROFILE_MINIMAL: set(),
     TOOL_PROFILE_EXTERNAL_OPERATION: {
-        "activate_skill",
         "read_file",
         "write_file",
         "edit_file",
@@ -29,7 +28,6 @@ _PROFILE_TOOLS: dict[str, set[str]] = {
         "todo_write",
     },
     TOOL_PROFILE_FULL: {
-        "activate_skill",
         "read_file",
         "write_file",
         "edit_file",
