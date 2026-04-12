@@ -274,7 +274,7 @@ class MemoryStore:
                         INSERT INTO turns_fts(rowid, text) VALUES (new.id, new.text);
                     END;
                 """)
-            except Exception as exc:
+            except sqlite3.OperationalError as exc:
                 raise RuntimeError("FTS5 not available in this SQLite build") from exc
 
     def _init_schema(self) -> None:
