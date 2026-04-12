@@ -30,7 +30,7 @@ class MemoryStore:
         self._connection.execute("PRAGMA journal_mode = WAL")
         self._connection.execute("PRAGMA synchronous = NORMAL")
         self._init_schema()
-        self._migrate_schema()   # ← add this line
+        self._migrate_schema()
         self._lock = asyncio.Lock()
 
     async def get_processed_event(self, event_id: str) -> OutboundReply | None:
