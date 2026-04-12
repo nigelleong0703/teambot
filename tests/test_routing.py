@@ -29,27 +29,17 @@ async def test_reply_target_is_hard_routed_and_stable() -> None:
 
 
 @pytest.mark.asyncio
-async def test_process_event_exposes_trace_and_reasoning_note(monkeypatch) -> None:
+async def test_process_event_exposes_reply_text(monkeypatch) -> None:
     service = AgentService()
-    expected_trace = [
-        {
-            "step": 1,
-            "action": "get_current_time",
-            "input": {"timezone": "Asia/Kuala_Lumpur"},
-            "blocked": False,
-            "observation": "2026-03-06 09:00:00",
-        }
-    ]
 
     monkeypatch.setattr(
         service._agent,
-        "invoke",
-        lambda _state: {
-            "reply_text": "It is 2026-03-06 09:00:00 in Kuala Lumpur.",
-            "selected_action": "get_current_time",
-            "reasoning_note": "Need current time before answering.",
-            "execution_trace": expected_trace,
-        },
+        "run_loop",
+        lambda **_kwargs: (
+            "It is 2026-03-06 09:00:00 in Kuala Lumpur.",
+            [],
+            {"input_tokens": 10, "output_tokens": 5},
+        ),
     )
 
     event = InboundEvent(
@@ -65,8 +55,5 @@ async def test_process_event_exposes_trace_and_reasoning_note(monkeypatch) -> No
     reply = await service.process_event(event)
 
     assert reply.text == "It is 2026-03-06 09:00:00 in Kuala Lumpur."
-    assert reply.skill_name == "get_current_time"
-    assert reply.reasoning_note == "Need current time before answering."
-    assert reply.execution_trace == expected_trace
 
 

@@ -42,15 +42,19 @@ class SessionMemoryManager:
 
     async def append_turns(
         self,
-        *,
         conversation_key: str,
         user_text: str,
         assistant_text: str,
+        *,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
     ) -> SessionCompactionResult:
         await self._store.append_turns(
             conversation_key=conversation_key,
             user_text=user_text,
             assistant_text=assistant_text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )
         return await self._compaction_engine.maybe_compact(
             store=self._store,

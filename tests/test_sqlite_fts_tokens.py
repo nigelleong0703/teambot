@@ -223,6 +223,7 @@ async def test_fts_stays_in_sync_after_turn_deleted(tmp_path) -> None:
 # ---------------------------------------------------------------------------
 # Task 5: AgentLoop + TeamBotRuntime usage accumulation
 # ---------------------------------------------------------------------------
+
 from dataclasses import dataclass, field as dc_field
 from typing import Any
 
@@ -330,3 +331,66 @@ async def test_fts_stays_in_sync_after_history_trim(tmp_path) -> None:
 
     results = await store.search_turns("xylophone kazoo")
     assert results == []
+
+
+# ---------------------------------------------------------------------------
+# Task 6: SessionMemoryManager + AgentService end-to-end token persistence
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_session_memory_manager_forwards_token_counts(tmp_path) -> None:
+    store = MemoryStore(db_path=tmp_path / "session.db")
+    target = ReplyTarget(team_id="T1", channel_id="C1", thread_ts="6.1")
+    session_memory = SessionMemoryManager(store=store)
+    conversation = await store.upsert_conversation(target)
+
+    await session_memory.append_turns(
+        conversation_key=conversation.conversation_key,
+        user_text="hello",
+        assistant_text="world",
+        input_tokens=100,
+        output_tokens=50,
+    )
+
+    turns = await store.list_conversation_turns(conversation.conversation_key)
+    assistant_turn = next(t for t in turns if t.role == "assistant")
+    assert assistant_turn.input_tokens == 100
+    assert assistant_turn.output_tokens == 50
+
+
+# ---------------------------------------------------------------------------
+# Task 6 (cont.): AgentService end-to-end — process_event persists token counts
+# ---------------------------------------------------------------------------
+from unittest.mock import patch
+
+from teambot.agent.service import AgentService
+from teambot.domain.models import InboundEvent
+
+
+@pytest.mark.asyncio
+async def test_agent_service_persists_token_counts(tmp_path) -> None:
+    """process_event unpacks run_loop 3-tuple and stores token counts."""
+    service = AgentService()
+    # Redirect store to isolated tmp DB so we don't pollute the real agent store
+    service.store = MemoryStore(db_path=tmp_path / "svc.db")
+    service.session_memory = service._build_session_memory_manager()
+
+    with patch.object(
+        service._agent,
+        "run_loop",
+        return_value=("response text", [], {"input_tokens": 42, "output_tokens": 17}),
+    ):
+        event = InboundEvent(
+            event_id="evt-svc-1",
+            team_id="T1",
+            channel_id="C1",
+            thread_ts="9.1",
+            user_id="U1",
+            text="hello",
+        )
+        await service.process_event(event)
+
+    turns = await service.store.list_conversation_turns("T1:C1:9.1")
+    assistant_turn = next(t for t in turns if t.role == "assistant")
+    assert assistant_turn.input_tokens == 42
+    assert assistant_turn.output_tokens == 17

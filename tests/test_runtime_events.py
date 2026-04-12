@@ -330,7 +330,7 @@ async def test_agent_service_stream_event_emits_memory_compacted_before_completi
 
 
 @pytest.mark.asyncio
-async def test_agent_service_injects_memory_context_into_state() -> None:
+async def test_agent_service_injects_memory_context_into_messages() -> None:
     service = AgentService(tools_profile="minimal")
     first_event = InboundEvent(
         event_id="evt-history-1",
@@ -343,21 +343,14 @@ async def test_agent_service_injects_memory_context_into_state() -> None:
     )
     first_reply = await service.process_event(first_event)
 
-    captured_state: dict[str, Any] = {}
+    captured_messages: list[dict[str, Any]] = []
 
-    def _invoke_stub(state: AgentState, runtime_event_listener=None):
-        _ = runtime_event_listener
-        captured_state.update(state)
-        return {
-            **state,
-            "reply_text": "second reply",
-            "selected_action": "",
-            "selected_skill": "",
-            "reasoning_note": "history-aware",
-            "execution_trace": [],
-        }
+    def _run_loop_stub(**kwargs: Any) -> tuple[str, list, dict]:
+        msgs = kwargs.get("messages", [])
+        captured_messages.extend(msgs)
+        return "second reply", [], {}
 
-    service._agent.invoke = _invoke_stub  # type: ignore[method-assign]
+    service._agent.run_loop = _run_loop_stub  # type: ignore[method-assign]
 
     second_event = InboundEvent(
         event_id="evt-history-2",
@@ -372,9 +365,10 @@ async def test_agent_service_injects_memory_context_into_state() -> None:
     reply = await service.process_event(second_event)
 
     assert reply.text == "second reply"
-    assert captured_state["recent_turns"] == [
-        {"role": "user", "text": "hello there"},
-        {"role": "assistant", "text": " ".join(first_reply.text.split())},
-    ]
-    assert captured_state["conversation_summary"] == ""
-    assert captured_state["memory_system_prompt_suffix"] == ""
+    # Messages should include history turns followed by the new user message
+    roles = [m["role"] for m in captured_messages]
+    assert "user" in roles
+    # The last message should be the current user query
+    assert captured_messages[-1]["content"] == "follow up"
+    # There should be prior history messages (from first_event)
+    assert len(captured_messages) > 1

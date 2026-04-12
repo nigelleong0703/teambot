@@ -17,6 +17,7 @@ from ..memory import (
     SessionCompactionResult,
     SessionMemoryManager,
 )
+from .prompts.system_prompt import build_system_prompt_from_working_dir
 from .runtime import TeamBotRuntime
 from .state import build_initial_state
 
@@ -142,19 +143,33 @@ class AgentService:
             thread_ts=event.thread_ts,
         )
         reply_target, state = await self._build_runtime_state(event=event, reply_target=target)
-        result = self._agent.invoke(state)
+
+        messages = list(state["recent_turns"])
+        user_text = event.text or f"reaction:{event.reaction}"
+        messages.append({"role": "user", "content": user_text})
+        system_prompt = build_system_prompt_from_working_dir(state.get("runtime_working_dir"))
+        if state.get("memory_system_prompt_suffix"):
+            system_prompt = f"{system_prompt}\n\n{state['memory_system_prompt_suffix']}"
+
+        final_text, _, usage = self._agent.run_loop(
+            messages=messages,
+            system_prompt=system_prompt,
+            conversation_key=str(state["conversation_key"]),
+        )
+
         reply = self._build_reply(
             event=event,
             conversation_key=str(state["conversation_key"]),
             reply_target=reply_target,
-            result=result,
+            result={"reply_text": final_text},
         )
 
-        user_text = event.text or f"reaction:{event.reaction}"
         await self.session_memory.append_turns(
             conversation_key=str(state["conversation_key"]),
             user_text=user_text,
-            assistant_text=reply.text,
+            assistant_text=final_text,
+            input_tokens=usage.get("input_tokens"),
+            output_tokens=usage.get("output_tokens"),
         )
         await self.store.save_processed_event(event.event_id, reply)
         return reply
