@@ -232,48 +232,23 @@ async def test_agent_service_stream_event_maps_provider_tokens_to_runtime_deltas
         text="stream please",
     )
 
-    provider_events: list[tuple[str, dict[str, Any]]] = []
-
-    class _ProviderStub:
-        def __init__(self) -> None:
-            self._event_listener = None
-
-        def set_event_listener(self, listener):
-            self._event_listener = listener
-
-    provider_stub = _ProviderStub()
-    service.provider_manager = provider_stub  # type: ignore[assignment]
-
-    def _run_loop_stub(**kwargs: Any) -> tuple[str, list, dict]:
-        on_event = kwargs.get("on_event")
-        if provider_stub._event_listener is not None:
-            provider_stub._event_listener("model_reasoning_token", {"token": "Need"})
-            provider_stub._event_listener("model_token", {"token": "Done"})
-        if on_event is not None:
-            on_event(RuntimeEvent(run_id=kwargs.get("conversation_key", ""), step=1, event_type="thinking", text="Need"))
-        return ("Done", [], {"input_tokens": 10, "output_tokens": 5})
+    def _run_loop_stub(
+        *, messages, system_prompt, conversation_key="", working_dir="",
+        on_token=None, on_event=None
+    ):
+        if on_token:
+            on_token("Hello")
+            on_token(" world")
+        return "Hello world", messages, {}
 
     service._agent.run_loop = _run_loop_stub  # type: ignore[method-assign]
 
-    def _previous_listener(name: str, payload: dict[str, Any]) -> None:
-        provider_events.append((name, payload))
-
-    provider_stub.set_event_listener(_previous_listener)
-
     events = [item async for item in service.stream_event(event)]
 
-    assert [item.event_type for item in events] == [
-        "thinking_delta",
-        "final_delta",
-        "thinking",
-        "run_completed",
-    ]
-    assert events[0].text == "Need"
-    assert events[1].text == "Done"
-    assert provider_events == [
-        ("model_reasoning_token", {"token": "Need"}),
-        ("model_token", {"token": "Done"}),
-    ]
+    delta_events = [e for e in events if e.event_type == "final_delta"]
+    assert [e.text for e in delta_events] == ["Hello", " world"]
+    assert events[-1].event_type == "run_completed"
+    assert events[-1].text == "Hello world"
 
 
 @pytest.mark.asyncio
@@ -294,18 +269,17 @@ async def test_agent_service_stream_event_emits_memory_compacted_before_completi
 
     service.session_memory.append_turns = _append_turns  # type: ignore[method-assign]
 
-    def _run_loop_stub(**kwargs: Any) -> tuple[str, list, dict]:
-        on_event = kwargs.get("on_event")
-        if on_event is not None:
-            on_event(RuntimeEvent(run_id=kwargs.get("conversation_key", ""), step=1, event_type="thinking", text="Need"))
-        return ("Done", [], {"input_tokens": 10, "output_tokens": 5})
+    def _run_loop_stub(
+        *, messages, system_prompt, conversation_key="", working_dir="",
+        on_token=None, on_event=None
+    ):
+        return "Done", messages, {}
 
     service._agent.run_loop = _run_loop_stub  # type: ignore[method-assign]
 
     events = [item async for item in service.stream_event(event)]
 
     assert [item.event_type for item in events] == [
-        "thinking",
         "memory_compacted",
         "run_completed",
     ]
@@ -327,10 +301,12 @@ async def test_agent_service_injects_memory_context_into_messages() -> None:
 
     captured_messages: list[dict[str, Any]] = []
 
-    def _run_loop_stub(**kwargs: Any) -> tuple[str, list, dict]:
-        msgs = kwargs.get("messages", [])
-        captured_messages.extend(msgs)
-        return "second reply", [], {}
+    def _run_loop_stub(
+        *, messages, system_prompt, conversation_key="", working_dir="",
+        on_token=None, on_event=None
+    ):
+        captured_messages.extend(messages)
+        return "second reply", messages, {}
 
     service._agent.run_loop = _run_loop_stub  # type: ignore[method-assign]
 
@@ -347,10 +323,10 @@ async def test_agent_service_injects_memory_context_into_messages() -> None:
     reply = await service.process_event(second_event)
 
     assert reply.text == "second reply"
-    # Messages should include history turns followed by the new user message
-    roles = [m["role"] for m in captured_messages]
-    assert "user" in roles
-    # The last message should be the current user query
-    assert captured_messages[-1]["content"] == "follow up"
-    # There should be prior history messages (from first_event)
-    assert len(captured_messages) > 1
+    # Session history from the first turn must appear in messages
+    user_msgs = [m for m in captured_messages if m.get("role") == "user"]
+    assistant_msgs = [m for m in captured_messages if m.get("role") == "assistant"]
+    assert any(m.get("content") == "hello there" for m in user_msgs)
+    assert any(first_reply.text in (m.get("content") or "") for m in assistant_msgs)
+    # The current user message must be last
+    assert captured_messages[-1] == {"role": "user", "content": "follow up"}

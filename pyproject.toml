@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "teambot"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "openai>=1.0.0",
+    "anthropic>=0.40.0",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.8.0",
+    "typing-extensions>=4.11.0",
+    "prompt_toolkit>=3.0.52",
+    "slack-bolt>=1.27.0",
+    "python-telegram-bot>=22.5",
+    "pywa>=3.9.0",
+    "lark-oapi>=1.5.3",
+    "discord-interactions.py>=0.0.8",
+]
+
+[project.scripts]
+teambot = "teambot.app.cli:main"
+teambot-server = "teambot.app.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/teambot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

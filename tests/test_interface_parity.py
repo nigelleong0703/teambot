@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,10 @@ def test_api_cli_and_tui_use_bootstrap_composition_root() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not (os.environ.get("AGENT_API_KEY") or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")),
+    reason="requires a configured LLM provider (set AGENT_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY)",
+)
 async def test_bootstrapped_service_handles_message_and_reaction() -> None:
     service = build_agent_service()
 

@@ -21,6 +21,7 @@ from .registry import (
     normalize_provider_name,
     provider_api_key_envs,
 )
+from .clients.native import NativeProviderClient
 from .clients.langchain import LangChainProviderClient, normalize_chat_response
 from .manager import (
     ProviderClientRegistry,
@@ -53,6 +54,7 @@ __all__ = [
     "provider_api_key_envs",
     "extract_json_object",
     "normalize_chat_response",
+    "NativeProviderClient",
     "LangChainProviderClient",
     "ProviderClientRegistry",
     "ProviderInvocationResult",

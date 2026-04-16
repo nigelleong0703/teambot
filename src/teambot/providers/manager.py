@@ -15,7 +15,7 @@ from .base import (
     ProviderProfileBinding,
     ProviderSettings,
 )
-from .clients.langchain import LangChainProviderClient
+from .clients.native import NativeProviderClient
 from .config import load_provider_settings_from_env
 from .registry import PROFILE_AGENT, PROFILE_SUMMARY, ROLE_AGENT, resolve_profile_name
 
@@ -57,7 +57,7 @@ class ProviderClientRegistry:
         *,
         client_factory: Callable[[ProviderEndpoint], ProviderClient] | None = None,
     ) -> None:
-        self._client_factory = client_factory or LangChainProviderClient
+        self._client_factory = client_factory or NativeProviderClient
         self._clients: dict[str, ProviderClient] = {}
 
     def get_client(self, endpoint: ProviderEndpoint) -> ProviderClient:
@@ -215,6 +215,102 @@ class ProviderManager:
             model=str(raw.get("model", "")),
             finish_reason=str(raw.get("finish_reason", "")),
             usage=raw.get("usage", {}) if isinstance(raw.get("usage"), dict) else {},
+        )
+
+    def invoke_profile_chat(
+        self,
+        *,
+        profile: str,
+        system_prompt: str,
+        messages: list[dict[str, Any]],
+        tools: list[ModelToolSpec] | None = None,
+        on_token: Callable[[str], None] | None = None,
+    ) -> ModelToolInvocationResult:
+        """Invoke with a full messages list (multi-turn conversation).
+
+        Uses ``client.invoke_chat()`` so the LLM sees the complete conversation
+        history including previous tool calls and results.
+        """
+        profile = resolve_profile_name(profile)
+        binding = self.settings.get_profile_binding(profile)
+        tool_payload = (
+            [{"name": t.name, "description": t.description, "input_schema": t.input_schema}
+             for t in tools]
+            if tools else None
+        )
+        attempts: list[ProviderAttempt] = []
+        for endpoint in self._candidate_endpoints(binding):
+            client = self.client_registry.get_client(endpoint)
+            started_at = time.perf_counter()
+            self._emit("model_start", {
+                "profile": profile, "role": profile,
+                "provider": endpoint.provider, "model": endpoint.model,
+                "endpoint": endpoint.base_url or "",
+                "system_prompt": system_prompt, "request_payload": messages,
+                "tools": tool_payload or [],
+            })
+            try:
+                def _forward_token(token: str) -> None:
+                    self._emit("model_token", {
+                        "profile": profile, "role": profile,
+                        "provider": endpoint.provider, "model": endpoint.model,
+                        "token": token,
+                    })
+                    if on_token is not None:
+                        on_token(token)
+
+                invoke_chat = getattr(client, "invoke_chat", None)
+                if not callable(invoke_chat):
+                    raise ProviderInvocationError(
+                        f"provider client does not support invoke_chat: {type(client)}"
+                    )
+                response = invoke_chat(
+                    system_prompt=system_prompt,
+                    messages=messages,
+                    tools=tool_payload,
+                    on_token=_forward_token if on_token or self._event_listener else None,
+                )
+                elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+                self._emit("model_end", {
+                    "profile": profile, "role": profile,
+                    "provider": endpoint.provider, "model": endpoint.model,
+                    "duration_ms": elapsed_ms,
+                    "usage": response.usage, "finish_reason": response.finish_reason,
+                })
+                parsed_tool_calls = []
+                for item in response.tool_calls:
+                    name = str(item.get("name", "")).strip()
+                    if not name:
+                        continue
+                    parsed_tool_calls.append(
+                        ModelToolCall(
+                            name=name,
+                            arguments=item.get("arguments", {}) if isinstance(item.get("arguments"), dict) else {},
+                            call_id=str(item.get("id", "")).strip(),
+                        )
+                    )
+                return ModelToolInvocationResult(
+                    text=response.text,
+                    tool_calls=parsed_tool_calls,
+                    provider=endpoint.provider,
+                    model=endpoint.model,
+                    finish_reason=response.finish_reason,
+                    usage=response.usage,
+                )
+            except Exception as exc:
+                elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+                attempts.append(ProviderAttempt(
+                    profile=profile, provider=endpoint.provider,
+                    model=endpoint.model, endpoint=endpoint.base_url or "",
+                    error=str(exc),
+                ))
+                self._emit("model_error", {
+                    "profile": profile, "role": profile,
+                    "provider": endpoint.provider, "model": endpoint.model,
+                    "duration_ms": elapsed_ms, "error": str(exc),
+                })
+        raise ProviderInvocationError(
+            f"all providers failed for profile: {profile}", attempts=attempts
         )
 
     def invoke_role_json(

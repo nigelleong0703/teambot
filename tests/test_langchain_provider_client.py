@@ -1,78 +1,54 @@
 from __future__ import annotations
 
-import sys
 import types
 
 from teambot.providers.base import ProviderEndpoint
-from teambot.providers.clients.langchain import LangChainProviderClient, normalize_chat_response
+from teambot.providers.clients.langchain import normalize_chat_response
+from teambot.providers.clients.native import NativeProviderClient
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-class _Message:
-    def __init__(self, *, content: str) -> None:
-        self.content = content
+def _make_openai_chunk(content: str | None = None, finish_reason: str | None = None):
+    delta = types.SimpleNamespace(content=content)
+    choice = types.SimpleNamespace(delta=delta, finish_reason=finish_reason)
+    return types.SimpleNamespace(choices=[choice], usage=None)
 
 
-class _Chunk:
-    def __init__(
-        self,
-        *,
-        content: str = "",
-        tool_calls: list[dict] | None = None,
-        finish_reason: str = "",
-    ) -> None:
-        self.content = content
-        self.tool_calls = list(tool_calls or [])
-        self.response_metadata = {"finish_reason": finish_reason} if finish_reason else {}
-        self.usage_metadata = {}
-
-    def __add__(self, other: "_Chunk") -> "_Chunk":
-        combined = _Chunk(
-            content=f"{self.content}{other.content}",
-            tool_calls=[*self.tool_calls, *other.tool_calls],
-            finish_reason=other.response_metadata.get("finish_reason", "")
-            or self.response_metadata.get("finish_reason", ""),
-        )
-        return combined
+def _make_openai_tool_response(name: str, arguments: str, call_id: str = "call_1"):
+    func = types.SimpleNamespace(name=name, arguments=arguments)
+    tc = types.SimpleNamespace(id=call_id, function=func)
+    message = types.SimpleNamespace(content=None, tool_calls=[tc])
+    choice = types.SimpleNamespace(message=message, finish_reason="tool_calls")
+    return types.SimpleNamespace(choices=[choice], usage=None)
 
 
-class _FakeModel:
-    def __init__(self) -> None:
-        self.bound_tools = None
-        self.invoke_calls = 0
-        self.stream_calls = 0
-
-    def bind_tools(self, tools, tool_choice="auto"):
-        self.bound_tools = (tools, tool_choice)
-        return self
-
-    def stream(self, messages):
-        _ = messages
-        self.stream_calls += 1
-        yield _Chunk(
-            tool_calls=[
-                {
-                    "name": "get_current_time",
-                    "args": {"timezone": "Asia/Kuala_Lumpur"},
-                    "id": "call_1",
-                }
-            ],
-            finish_reason="tool_calls",
-        )
-
-    def invoke(self, messages):
-        _ = messages
-        self.invoke_calls += 1
-        raise AssertionError("invoke() should not be used for streamed tool calls")
+# ---------------------------------------------------------------------------
+# Tool calling — non-streaming path
+# ---------------------------------------------------------------------------
 
 
-def test_langchain_client_streams_tool_calling_without_falling_back(monkeypatch) -> None:
-    fake_messages = types.SimpleNamespace(HumanMessage=_Message, SystemMessage=_Message)
-    monkeypatch.setitem(sys.modules, "langchain_core.messages", fake_messages)
+def test_native_client_uses_non_streaming_for_tool_calls(monkeypatch) -> None:
+    """When tools are provided the client must not stream, even with on_token."""
+    create_calls: list[dict] = []
+
+    class _FakeCompletions:
+        def create(self, *, stream: bool = False, stream_options=None, **kwargs):
+            create_calls.append({"stream": stream})
+            return _make_openai_tool_response(
+                name="get_current_time",
+                arguments='{"timezone": "Asia/Kuala_Lumpur"}',
+            )
+
+    fake_client = types.SimpleNamespace(
+        chat=types.SimpleNamespace(completions=_FakeCompletions())
+    )
 
     endpoint = ProviderEndpoint(provider="openai-compatible", model="gpt-test")
-    client = LangChainProviderClient(endpoint)
-    model = _FakeModel()
-    monkeypatch.setattr(client, "_get_model", lambda: model)
+    client = NativeProviderClient(endpoint)
+    monkeypatch.setattr(client, "_get_openai_client", lambda: fake_client)
 
     tokens: list[str] = []
     response = client.invoke(
@@ -88,11 +64,54 @@ def test_langchain_client_streams_tool_calling_without_falling_back(monkeypatch)
         on_token=tokens.append,
     )
 
-    assert model.stream_calls == 1
-    assert model.invoke_calls == 0
+    assert len(create_calls) == 1
+    assert create_calls[0]["stream"] is False
     assert response.tool_calls[0]["name"] == "get_current_time"
     assert response.tool_calls[0]["arguments"]["timezone"] == "Asia/Kuala_Lumpur"
     assert "".join(tokens) == ""
+
+
+# ---------------------------------------------------------------------------
+# Streaming — think-tag stripping
+# ---------------------------------------------------------------------------
+
+
+def test_native_client_streaming_strips_think_blocks(monkeypatch) -> None:
+    class _FakeCompletions:
+        def create(self, *, stream: bool = False, stream_options=None, **kwargs):
+            if stream:
+                return iter([
+                    _make_openai_chunk("<think>"),
+                    _make_openai_chunk("hidden"),
+                    _make_openai_chunk("</think>Hello"),
+                    _make_openai_chunk(" world"),
+                    # final empty choices chunk
+                    types.SimpleNamespace(choices=[], usage=None),
+                ])
+            raise AssertionError("non-streaming fallback should not be called")
+
+    fake_client = types.SimpleNamespace(
+        chat=types.SimpleNamespace(completions=_FakeCompletions())
+    )
+
+    endpoint = ProviderEndpoint(provider="openai-compatible", model="gpt-test")
+    client = NativeProviderClient(endpoint)
+    monkeypatch.setattr(client, "_get_openai_client", lambda: fake_client)
+
+    tokens: list[str] = []
+    response = client.invoke(
+        system_prompt="sys",
+        payload={"message": "hi"},
+        on_token=tokens.append,
+    )
+
+    assert "".join(tokens) == "Hello world"
+    assert response.text == "Hello world"
+
+
+# ---------------------------------------------------------------------------
+# normalize_chat_response — duck-typed response objects
+# ---------------------------------------------------------------------------
 
 
 def test_normalize_chat_response_strips_inline_think_tags() -> None:
@@ -106,36 +125,14 @@ def test_normalize_chat_response_strips_inline_think_tags() -> None:
     assert normalized.text == "Hello there"
 
 
-def test_langchain_client_streaming_strips_think_blocks(monkeypatch) -> None:
-    fake_messages = types.SimpleNamespace(HumanMessage=_Message, SystemMessage=_Message)
-    monkeypatch.setitem(sys.modules, "langchain_core.messages", fake_messages)
+def test_normalize_chat_response_list_content() -> None:
+    class _Resp:
+        content = [{"text": "```json\n{\"ok\": true}\n```"}]
+        response_metadata = {"finish_reason": "stop"}
+        usage_metadata = {"input_tokens": 5, "output_tokens": 3}
 
-    class _StreamingModel:
-        def bind_tools(self, tools, tool_choice="auto"):
-            _ = (tools, tool_choice)
-            return self
+    normalized = normalize_chat_response(_Resp())
 
-        def stream(self, messages):
-            _ = messages
-            yield _Chunk(content="<think>")
-            yield _Chunk(content="hidden")
-            yield _Chunk(content="</think>Hello")
-            yield _Chunk(content=" world")
-
-        def invoke(self, messages):
-            _ = messages
-            return _Chunk(content="<think>hidden</think>Hello world")
-
-    endpoint = ProviderEndpoint(provider="openai-compatible", model="gpt-test")
-    client = LangChainProviderClient(endpoint)
-    monkeypatch.setattr(client, "_get_model", lambda: _StreamingModel())
-
-    tokens: list[str] = []
-    response = client.invoke(
-        system_prompt="sys",
-        payload={"message": "hi"},
-        on_token=tokens.append,
-    )
-
-    assert "".join(tokens) == "Hello world"
-    assert response.text == "Hello world"
+    assert normalized.finish_reason == "stop"
+    assert normalized.usage["input_tokens"] == 5
+    assert "ok" in normalized.text

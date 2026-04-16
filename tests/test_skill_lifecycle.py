@@ -5,35 +5,66 @@ from teambot.skills.manager import (
     get_agent_skills_dir,
     list_available_skills,
 )
+from teambot.skills.registry import SkillManifest, skill_registry
 
 
-def test_ensure_skills_initialized_does_not_mutate_active_dir() -> None:
+def test_ensure_skills_initialized_discovers_builtin_handle_reaction() -> None:
     ensure_skills_initialized()
     assert "handle_reaction" in set(list_available_skills())
     assert not get_active_skills_dir().exists()
 
 
-def test_active_skill_docs_remain_catalog_only() -> None:
-    active_dir = get_active_skills_dir()
-    active_dir.mkdir(parents=True, exist_ok=True)
+def test_skill_registered_directly_is_available() -> None:
+    skill_registry.register(
+        SkillManifest(name="test_direct_skill", description="direct registration test"),
+        content="# Direct\nRegistered directly in test.",
+    )
+    try:
+        assert "test_direct_skill" in set(list_available_skills())
+        doc = SkillService.get_skill_doc("test_direct_skill")
+        assert doc is not None
+        assert doc.content == "# Direct\nRegistered directly in test."
+        assert doc.description == "direct registration test"
+    finally:
+        skill_registry.unregister("test_direct_skill")
 
-    custom_skill_dir = active_dir / "custom_skill"
-    custom_skill_dir.mkdir(parents=True, exist_ok=True)
-    (custom_skill_dir / "SKILL.md").write_text("name: custom_skill", encoding="utf-8")
 
-    doc = SkillService.get_skill_doc("custom_skill")
+def test_skill_plugin_discovered_from_directory(tmp_path) -> None:
+    skill_dir = tmp_path / "my_plugin_skill"
+    skill_dir.mkdir()
+    (skill_dir / "__init__.py").write_text(
+        "from teambot.skills.registry import skill_registry, SkillManifest\n"
+        "skill_registry.register(\n"
+        "    SkillManifest(name='my_plugin_skill', description='plugin test'),\n"
+        "    content='plugin content',\n"
+        ")\n",
+        encoding="utf-8",
+    )
+
+    skill_registry.discover(tmp_path)
+
+    doc = SkillService.get_skill_doc("my_plugin_skill")
     assert doc is not None
-    assert doc.name == "custom_skill"
+    assert doc.content == "plugin content"
+    skill_registry.unregister("my_plugin_skill")
 
 
-def test_enable_disable_skill_works_on_active_set() -> None:
-    agent_skills_dir = get_agent_skills_dir()
-    custom_skill_dir = agent_skills_dir / "custom_skill"
-    custom_skill_dir.mkdir(parents=True, exist_ok=True)
-    (custom_skill_dir / "SKILL.md").write_text("name: custom_skill", encoding="utf-8")
+def test_disable_skill_unregisters_from_memory() -> None:
+    skill_registry.register(
+        SkillManifest(name="temp_skill", description="temp"),
+        content="temp",
+    )
+    assert SkillService.get_skill_doc("temp_skill") is not None
+    assert SkillService.disable_skill("temp_skill") is True
+    assert SkillService.get_skill_doc("temp_skill") is None
 
-    assert SkillService.enable_skill("custom_skill", force=True) is True
-    assert "custom_skill" in set(list_available_skills())
 
-    assert SkillService.disable_skill("custom_skill") is True
-    assert "custom_skill" in set(list_available_skills())
+def test_enable_skill_returns_true_when_skill_exists() -> None:
+    skill_registry.register(
+        SkillManifest(name="enabled_skill", description="enabled"),
+        content="enabled content",
+    )
+    try:
+        assert SkillService.enable_skill("enabled_skill") is True
+    finally:
+        skill_registry.unregister("enabled_skill")

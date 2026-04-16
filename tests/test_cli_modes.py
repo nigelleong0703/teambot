@@ -27,7 +27,7 @@ class _ServiceStub:
     def reload_runtime(self) -> None:
         return None
 
-    async def stream_event(self, _event):
+    async def stream_event(self, _event, **kwargs):
         for item in self.runtime_events:
             yield item
 

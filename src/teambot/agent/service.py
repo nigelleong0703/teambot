@@ -18,6 +18,7 @@ from ..memory import (
     SessionMemoryManager,
 )
 from .prompts.system_prompt import build_system_prompt_from_working_dir
+from .reason import _reasoner_prompt
 from .runtime import TeamBotRuntime
 from .state import build_initial_state
 
@@ -81,40 +82,23 @@ class AgentService:
         self._sync_runtime_handles()
         self.session_memory = self._build_session_memory_manager()
 
-    @staticmethod
-    def _build_reply(
-        *,
-        event: InboundEvent,
-        conversation_key: str,
-        reply_target: ReplyTarget,
-        result: dict[str, Any],
-    ) -> OutboundReply:
-        return OutboundReply(
-            event_id=event.event_id,
-            conversation_key=conversation_key,
-            reply_target=reply_target,
-            text=result["reply_text"],
-            skill_name=str(result.get("selected_action") or result.get("selected_skill") or ""),
-            reasoning_note=str(result.get("reasoning_note") or ""),
-            execution_trace=list(result.get("execution_trace") or []),
-        )
+    def _build_system_prompt(self, session_context: Any) -> str:
+        base = f"{build_system_prompt_from_working_dir()}\n\n{_reasoner_prompt()}"
+        summary = getattr(session_context, "conversation_summary", "")
+        if summary:
+            base = f"{base}\n\n## Conversation summary\n{summary}"
+        return base
 
-    async def _build_runtime_state(
-        self,
-        *,
-        event: InboundEvent,
-        reply_target: ReplyTarget,
-    ) -> tuple[ReplyTarget, AgentState]:
-        session_context = await self.session_memory.load_context(reply_target)
-        memory_context = self.memory_context_assembler.build(
-            session_context=session_context,
-        )
-        state = build_initial_state(
-            event=event,
-            conversation_key=session_context.conversation_key,
-            memory_context=memory_context,
-        )
-        return session_context.reply_target, state
+    @staticmethod
+    def _session_to_messages(session_context: Any) -> list[dict[str, Any]]:
+        """Convert session recent_turns to a messages list for the loop."""
+        messages = []
+        for turn in getattr(session_context, "recent_turns", []):
+            role = turn.get("role", "") if isinstance(turn, dict) else getattr(turn, "role", "")
+            text = turn.get("text", "") if isinstance(turn, dict) else getattr(turn, "text", "")
+            if role and text:
+                messages.append({"role": role, "content": text})
+        return messages
 
     @staticmethod
     def _compaction_runtime_event(
@@ -142,30 +126,32 @@ class AgentService:
             channel_id=event.channel_id,
             thread_ts=event.thread_ts,
         )
-        reply_target, state = await self._build_runtime_state(event=event, reply_target=target)
+        session_context = await self.session_memory.load_context(target)
+        reply_target = session_context.reply_target
+        conversation_key = session_context.conversation_key
 
-        messages = list(state["recent_turns"])
+        messages = self._session_to_messages(session_context)
         user_text = event.text or f"reaction:{event.reaction}"
         messages.append({"role": "user", "content": user_text})
-        system_prompt = build_system_prompt_from_working_dir(state.get("runtime_working_dir"))
-        if state.get("memory_system_prompt_suffix"):
-            system_prompt = f"{system_prompt}\n\n{state['memory_system_prompt_suffix']}"
 
+        system_prompt = self._build_system_prompt(session_context)
         final_text, _, usage = self._agent.run_loop(
             messages=messages,
             system_prompt=system_prompt,
-            conversation_key=str(state["conversation_key"]),
+            conversation_key=conversation_key,
         )
 
-        reply = self._build_reply(
-            event=event,
-            conversation_key=str(state["conversation_key"]),
+        reply = OutboundReply(
+            event_id=event.event_id,
+            conversation_key=conversation_key,
             reply_target=reply_target,
-            result={"reply_text": final_text},
+            text=final_text,
+            skill_name="",
+            reasoning_note="",
         )
 
         await self.session_memory.append_turns(
-            conversation_key=str(state["conversation_key"]),
+            conversation_key=conversation_key,
             user_text=user_text,
             assistant_text=final_text,
             input_tokens=usage.get("input_tokens"),
@@ -190,60 +176,32 @@ class AgentService:
             channel_id=event.channel_id,
             thread_ts=event.thread_ts,
         )
-        reply_target, state = await self._build_runtime_state(event=event, reply_target=target)
+        session_context = await self.session_memory.load_context(target)
+        reply_target = session_context.reply_target
+        conversation_key = session_context.conversation_key
+
+        messages = self._session_to_messages(session_context)
+        user_text = event.text or f"reaction:{event.reaction}"
+        messages.append({"role": "user", "content": user_text})
+        system_prompt = self._build_system_prompt(session_context)
 
         queue: asyncio.Queue[RuntimeEvent | object] = asyncio.Queue()
         sentinel = object()
-        loop = asyncio.get_running_loop()
-        current_step = {"value": 1}
+        event_loop = asyncio.get_running_loop()
 
-        previous_listener = None
-        if self.provider_manager is not None:
-            previous_listener = getattr(self.provider_manager, "_event_listener", None)
+        def _on_event(runtime_event: RuntimeEvent) -> None:
+            event_loop.call_soon_threadsafe(queue.put_nowait, runtime_event)
 
-        def _emit(runtime_event: RuntimeEvent) -> None:
-            if runtime_event.step > 0:
-                current_step["value"] = runtime_event.step
-            loop.call_soon_threadsafe(queue.put_nowait, runtime_event)
-
-        def _provider_event_listener(name: str, payload: dict[str, Any]) -> None:
-            if previous_listener is not None:
-                previous_listener(name, payload)
-            if name == "model_reasoning_token":
-                token = str(payload.get("token", ""))
-                if token:
-                    loop.call_soon_threadsafe(
-                        queue.put_nowait,
-                        RuntimeEvent(
-                            run_id=str(state["conversation_key"]),
-                            step=current_step["value"],
-                            event_type="thinking_delta",
-                            text=token,
-                        ),
-                    )
-            elif name == "model_token":
-                token = str(payload.get("token", ""))
-                if token:
-                    loop.call_soon_threadsafe(
-                        queue.put_nowait,
-                        RuntimeEvent(
-                            run_id=str(state["conversation_key"]),
-                            step=current_step["value"],
-                            event_type="final_delta",
-                            text=token,
-                        ),
-                    )
-        
-        if self.provider_manager is not None:
-            self.provider_manager.set_event_listener(_provider_event_listener)
-
-        messages = list(state["recent_turns"])
-        user_text = event.text or f"reaction:{event.reaction}"
-        messages.append({"role": "user", "content": user_text})
-        system_prompt = build_system_prompt_from_working_dir(state.get("runtime_working_dir"))
-        if state.get("memory_system_prompt_suffix"):
-            system_prompt = f"{system_prompt}\n\n{state['memory_system_prompt_suffix']}"
-        conversation_key = str(state["conversation_key"])
+        def _on_token(token: str) -> None:
+            event_loop.call_soon_threadsafe(
+                queue.put_nowait,
+                RuntimeEvent(
+                    run_id=conversation_key,
+                    step=0,
+                    event_type="final_delta",
+                    text=token,
+                ),
+            )
 
         async def _run_and_store() -> None:
             try:
@@ -252,7 +210,8 @@ class AgentService:
                     messages=messages,
                     system_prompt=system_prompt,
                     conversation_key=conversation_key,
-                    on_event=_emit,
+                    on_token=_on_token,
+                    on_event=_on_event,
                 )
                 reply = OutboundReply(
                     event_id=event.event_id,
@@ -269,27 +228,22 @@ class AgentService:
                     input_tokens=usage.get("input_tokens"),
                     output_tokens=usage.get("output_tokens"),
                 )
-                compaction_event = self._compaction_runtime_event(
-                    conversation_key=conversation_key,
-                    current_step=current_step["value"],
-                    result=compaction,
-                )
-                if compaction_event is not None:
-                    loop.call_soon_threadsafe(queue.put_nowait, compaction_event)
-                loop.call_soon_threadsafe(
-                    queue.put_nowait,
-                    RuntimeEvent(
+                await self.store.save_processed_event(event.event_id, reply)
+                if compaction.compacted:
+                    queue.put_nowait(RuntimeEvent(
                         run_id=conversation_key,
                         step=0,
-                        event_type="run_completed",
-                        text=final_text,
-                    ),
-                )
-                await self.store.save_processed_event(event.event_id, reply)
+                        event_type="memory_compacted",
+                        text="Compacted summary",
+                    ))
+                queue.put_nowait(RuntimeEvent(
+                    run_id=conversation_key,
+                    step=0,
+                    event_type="run_completed",
+                    text=final_text,
+                ))
             finally:
-                if self.provider_manager is not None:
-                    self.provider_manager.set_event_listener(previous_listener)
-                loop.call_soon_threadsafe(queue.put_nowait, sentinel)
+                event_loop.call_soon_threadsafe(queue.put_nowait, sentinel)
 
         runner = asyncio.create_task(_run_and_store())
         try:
