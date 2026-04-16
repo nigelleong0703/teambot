@@ -93,6 +93,7 @@ class TeamBotRuntime:
         working_dir: str = "",
         on_token: Callable[[str], None] | None = None,
         on_event: Callable[[RuntimeEvent], None] | None = None,
+        on_approval_required: Callable[[str, dict[str, Any]], bool] | None = None,
     ) -> tuple[str, list[dict], dict[str, int]]:
         """Run the stateless tool-calling loop with a full messages list."""
         if self.loop is None:
@@ -104,6 +105,7 @@ class TeamBotRuntime:
             working_dir=working_dir,
             on_token=on_token,
             on_event=on_event,
+            on_approval_required=on_approval_required,
         )
 
     def invoke(

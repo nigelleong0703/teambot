@@ -83,7 +83,12 @@ class AgentService:
         self.session_memory = self._build_session_memory_manager()
 
     def _build_system_prompt(self, session_context: Any) -> str:
-        base = f"{build_system_prompt_from_working_dir()}\n\n{_reasoner_prompt()}"
+        from .prompts.system_prompt import DEFAULT_SYSTEM_PROMPT
+        custom = build_system_prompt_from_working_dir()
+        if custom and custom != DEFAULT_SYSTEM_PROMPT:
+            base = f"{custom}\n\n{_reasoner_prompt()}"
+        else:
+            base = _reasoner_prompt()
         summary = getattr(session_context, "conversation_summary", "")
         if summary:
             base = f"{base}\n\n## Conversation summary\n{summary}"
@@ -116,7 +121,11 @@ class AgentService:
             text="Compacted summary",
         )
 
-    async def process_event(self, event: InboundEvent) -> OutboundReply:
+    async def process_event(
+        self,
+        event: InboundEvent,
+        on_approval_required: Callable[[str, dict[str, Any]], bool] | None = None,
+    ) -> OutboundReply:
         existing = await self.store.get_processed_event(event.event_id)
         if existing is not None:
             return existing
@@ -139,6 +148,7 @@ class AgentService:
             messages=messages,
             system_prompt=system_prompt,
             conversation_key=conversation_key,
+            on_approval_required=on_approval_required,
         )
 
         reply = OutboundReply(
@@ -160,7 +170,11 @@ class AgentService:
         await self.store.save_processed_event(event.event_id, reply)
         return reply
 
-    async def stream_event(self, event: InboundEvent):
+    async def stream_event(
+        self,
+        event: InboundEvent,
+        on_approval_required: Callable[[str, dict[str, Any]], bool] | None = None,
+    ):
         existing = await self.store.get_processed_event(event.event_id)
         if existing is not None:
             yield RuntimeEvent(
@@ -212,6 +226,7 @@ class AgentService:
                     conversation_key=conversation_key,
                     on_token=_on_token,
                     on_event=_on_event,
+                    on_approval_required=on_approval_required,
                 )
                 reply = OutboundReply(
                     event_id=event.event_id,

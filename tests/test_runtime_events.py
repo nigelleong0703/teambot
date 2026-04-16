@@ -234,7 +234,7 @@ async def test_agent_service_stream_event_maps_provider_tokens_to_runtime_deltas
 
     def _run_loop_stub(
         *, messages, system_prompt, conversation_key="", working_dir="",
-        on_token=None, on_event=None
+        on_token=None, on_event=None, on_approval_required=None
     ):
         if on_token:
             on_token("Hello")
@@ -271,7 +271,7 @@ async def test_agent_service_stream_event_emits_memory_compacted_before_completi
 
     def _run_loop_stub(
         *, messages, system_prompt, conversation_key="", working_dir="",
-        on_token=None, on_event=None
+        on_token=None, on_event=None, on_approval_required=None
     ):
         return "Done", messages, {}
 
@@ -303,7 +303,7 @@ async def test_agent_service_injects_memory_context_into_messages() -> None:
 
     def _run_loop_stub(
         *, messages, system_prompt, conversation_key="", working_dir="",
-        on_token=None, on_event=None
+        on_token=None, on_event=None, on_approval_required=None
     ):
         captured_messages.extend(messages)
         return "second reply", messages, {}

@@ -259,6 +259,13 @@ class ProviderManager:
                     if on_token is not None:
                         on_token(token)
 
+                def _forward_reasoning(token: str) -> None:
+                    self._emit("model_reasoning_token", {
+                        "profile": profile, "role": profile,
+                        "provider": endpoint.provider, "model": endpoint.model,
+                        "token": token,
+                    })
+
                 invoke_chat = getattr(client, "invoke_chat", None)
                 if not callable(invoke_chat):
                     raise ProviderInvocationError(
@@ -269,6 +276,7 @@ class ProviderManager:
                     messages=messages,
                     tools=tool_payload,
                     on_token=_forward_token if on_token or self._event_listener else None,
+                    on_reasoning=_forward_reasoning if self._event_listener else None,
                 )
                 elapsed_ms = int((time.perf_counter() - started_at) * 1000)
                 self._emit("model_end", {

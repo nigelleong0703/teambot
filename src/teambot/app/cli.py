@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
 import uuid
 from typing import Any
 
@@ -16,7 +17,7 @@ from ..actions.tools.profiles import (
 from ..domain.models import InboundEvent, OutboundReply, RuntimeEvent
 from .bootstrap import build_agent_service
 from .slash_commands import SlashCommandAction, dispatch_slash_command, format_help_lines, new_thread_ts
-from .terminal_io import discard_pending_stdin, suppress_stdin_echo
+from .terminal_io import discard_pending_stdin, restore_stdin_echo, suppress_stdin_echo
 
 
 class TeamBotCli:
@@ -70,6 +71,24 @@ class TeamBotCli:
 
             await self._process_task(raw)
 
+    def _on_approval_required(self, tool_name: str, arguments: dict[str, Any]) -> bool:
+        """Interactive approval prompt for high-risk tools. Runs in the loop thread."""
+        arg_summary = ", ".join(
+            f"{k}={TeamBotCli._summarize_value(v)}" for k, v in arguments.items()
+        )
+        prompt_line = f"\n[approval required] {tool_name}({arg_summary})\nAllow? [y/N] "
+        with restore_stdin_echo():
+            sys.stdout.write(prompt_line)
+            sys.stdout.flush()
+            try:
+                answer = sys.stdin.readline().strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                answer = ""
+        approved = answer in ("y", "yes")
+        if not approved:
+            print("[denied]")
+        return approved
+
     async def _process_task(self, raw: str) -> None:
         event = self._build_event(raw)
         if event is None:
@@ -80,7 +99,9 @@ class TeamBotCli:
 
             streamed_any = False
             if hasattr(self.service, "stream_event"):
-                async for runtime_event in self.service.stream_event(event):
+                async for runtime_event in self.service.stream_event(
+                    event, on_approval_required=self._on_approval_required
+                ):
                     streamed_any = True
                     self._render_runtime_event(runtime_event)
 

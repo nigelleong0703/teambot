@@ -54,6 +54,7 @@ class AgentLoop:
         working_dir: str = "",
         on_token: Callable[[str], None] | None = None,
         on_event: Callable[[RuntimeEvent], None] | None = None,
+        on_approval_required: Callable[[str, dict[str, Any]], bool] | None = None,
     ) -> tuple[str, list[dict[str, Any]], dict[str, int]]:
         """Run the tool-calling loop and return (final_text, messages, usage)."""
         messages = list(messages)
@@ -89,8 +90,24 @@ class AgentLoop:
 
             # Execute each tool call and append results
             for call in result.tool_calls:
+                if on_event is not None:
+                    on_event(RuntimeEvent(
+                        run_id=conversation_key,
+                        step=_step + 1,
+                        event_type="tool_call",
+                        action_name=call.name,
+                        action_input=call.arguments,
+                    ))
                 if self.tool_registry.has(call.name):
-                    tool_output = self.tool_registry.invoke(call.name, call.arguments)
+                    tool_entry = self.tool_registry.require(call.name)
+                    if (
+                        on_approval_required is not None
+                        and tool_entry.manifest.risk_level == "high"
+                        and not on_approval_required(call.name, call.arguments)
+                    ):
+                        tool_output = {"message": f"Tool execution denied by user: {call.name}"}
+                    else:
+                        tool_output = self.tool_registry.invoke(call.name, {"action_input": call.arguments})
                 else:
                     tool_output = {"message": f"Unknown tool: {call.name}"}
                 output_text = (
@@ -98,6 +115,14 @@ class AgentLoop:
                     if isinstance(tool_output, dict)
                     else str(tool_output)
                 )
+                if on_event is not None:
+                    on_event(RuntimeEvent(
+                        run_id=conversation_key,
+                        step=_step + 1,
+                        event_type="tool_result",
+                        action_name=call.name,
+                        observation=output_text,
+                    ))
                 messages.append({
                     "role": "tool",
                     "tool_call_id": call.call_id,

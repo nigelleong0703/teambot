@@ -579,13 +579,18 @@ def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if role == "assistant" and msg.get("tool_calls"):
             openai_tool_calls = []
             for tc in msg["tool_calls"]:
-                args = tc.get("arguments", {})
-                args_str = json.dumps(args, ensure_ascii=False) if isinstance(args, dict) else str(args)
+                fn = tc.get("function") or {}
+                name = str(fn.get("name") or tc.get("name") or "")
+                raw_args = fn.get("arguments") or tc.get("arguments") or {}
+                if isinstance(raw_args, str):
+                    args_str = raw_args
+                else:
+                    args_str = json.dumps(raw_args, ensure_ascii=False)
                 openai_tool_calls.append({
                     "id": str(tc.get("id", "")),
                     "type": "function",
                     "function": {
-                        "name": str(tc.get("name", "")),
+                        "name": name,
                         "arguments": args_str,
                     },
                 })
@@ -640,11 +645,19 @@ def _to_anthropic_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any
                 if text:
                     content_blocks.append({"type": "text", "text": text})
                 for tc in tool_calls:
+                    fn = tc.get("function") or {}
+                    raw_args = fn.get("arguments") or tc.get("arguments") or {}
+                    if isinstance(raw_args, str):
+                        try:
+                            import json as _json
+                            raw_args = _json.loads(raw_args)
+                        except Exception:
+                            raw_args = {}
                     content_blocks.append({
                         "type": "tool_use",
                         "id": str(tc.get("id", "")),
-                        "name": str(tc.get("name", "")),
-                        "input": tc.get("arguments", {}),
+                        "name": str(fn.get("name") or tc.get("name") or ""),
+                        "input": raw_args,
                     })
                 result.append({"role": "assistant", "content": content_blocks})
             else:

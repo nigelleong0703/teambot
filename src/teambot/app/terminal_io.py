@@ -46,3 +46,30 @@ def suppress_stdin_echo():
         except (termios.error, OSError, ValueError):
             pass
         discard_pending_stdin()
+
+
+@contextmanager
+def restore_stdin_echo():
+    """Temporarily restore stdin echo (for interactive prompts during suppression)."""
+    if termios is None or not sys.stdin.isatty():
+        yield
+        return
+
+    fd = sys.stdin.fileno()
+    try:
+        current_attrs = termios.tcgetattr(fd)
+    except (termios.error, OSError, ValueError):
+        yield
+        return
+
+    restored_attrs = list(current_attrs)
+    restored_attrs[3] |= termios.ECHO
+
+    try:
+        termios.tcsetattr(fd, termios.TCSADRAIN, restored_attrs)
+        yield
+    finally:
+        try:
+            termios.tcsetattr(fd, termios.TCSADRAIN, current_attrs)
+        except (termios.error, OSError, ValueError):
+            pass
